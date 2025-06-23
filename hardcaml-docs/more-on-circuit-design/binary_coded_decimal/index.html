@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 4.2.1 BCD Conversion</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>In the Binary Coded Decimal BCD system we represent decimal numbers in a binary format The format uses 4 bits per decimal digit to encode the numbers 0 through 9 For example the number 971 would be represented in BCD as 9 7 1 |1001|0111|0001|</p>
+</article>
+
+<article>
+<header><h1>Converting to Binary</h1></header>
+<p>To convert a BCD number to a binary number we need to do some multiplications by powers of 10 First we split the input vector into parts of width 4 then compute We can do something a little more efficient by starting with the top most digit and computing 9*100 7*10 1 9*10 7 * 10 1</p>
+</article>
+
+<article>
+<header><h1>Implementing in Hardware</h1></header>
+<p>We start by figuring out how many digits we need to process and a counter from is created An accumulator is also created wide enough to hold the largest result value  An assertion is raised if num_digits is equal to 1 This is because the register has width which you aren t allowed to do It is not unusual for otherwise generic hardcaml circuit generators to fall down on the smallest example in this way though it often tends to be a trivial case here the circuit literally does nothing if there is only 1 digit and can often be worked around While is 0 we are waiting for to be raised Then for cycles we will add each digit starting from the top most to When we have computed the result and set back to 0 let create clock start bcd let spec Reg_spec create clock in * Find the number of digits to convert and create a counter * let digits split_msb part_width 4 bcd in let num_digits List length digits in * We only support multiple digits for a single digit the output equals the input anyway * assert num_digits &gt; 1 let count Always Variable reg spec width Int ceil_log2 num_digits in * Create an accumulator large enough to hold the final result * let max_result Int pow 10 num_digits 1 in let acc Always Variable reg spec width num_bits_to_represent max_result in * Select the current digit being processed Note that when we split bcd into digits we did so from the top most digit * let digit mux count value digits |&gt; uresize width width acc value in Always compile if_ count value 0 * Wait for start When applied set the accumulator with the top most digit * when_ start count &lt; count value 1 acc &lt; digit * Add each succesive digit to the accumulator times 10 * count &lt; count value 1 acc &lt; drop_top acc value * of_unsigned_int width 4 10 width 4 digit * Finished processing digits * when_ count value num_digits 1 count &lt; 0 acc value count value 0 0 num_digits 1 count Int ceil_log2 num_digits 0 count start num_digits acc * 10 count num_digits 1 count</p>
+</article>
+
+<article>
+<header><h1>Testbench</h1></header>
+<p>The following steps are performed Create the BCD design Create a Create a simulator Get the simulator ports Return a function which performs a single test start the circuit with a BCD value wait for it to complete and return the result The function doesn t actually compute a BCD but it does do all the setup stuff which can be time consuming for larger designs It returns a function that allows us to run multiple conversions one after the other let bcd_of_string v String to_list v |&gt; List map f fun c &gt; Char to_int c Char to_int 0 |&gt; Bits of_unsigned_int width 4 |&gt; Bits concat_msb let test num_digits * Create the simulator * let sim let result done_ create clock input clock 1 start input start 1 bcd input bcd num_digits * 4 in Circuit create_exn name bcd output result result output done done_ |&gt; Cyclesim create in * Query the input and output ports * let start Cyclesim in_port sim start in let bcd Cyclesim in_port sim bcd in let done_ Cyclesim out_port sim done in let result Cyclesim out_port sim result in * Start the circuit running and wait for it to be done Return the computed result * let run v start Bits vdd bcd bcd_of_string v Cyclesim cycle sim start Bits gnd Cyclesim cycle sim while not Bits to_bool done_ do Cyclesim cycle sim done Bits to_unsigned_int result in run Circuit Cyclesim test</p>
+</article>
+
+<article>
+<header><h1>Tests</h1></header>
+<p>let%expect_test let run test 5 in Stdio print_s %message run 00000 int Stdio print_s %message run 12345 int Stdio print_s %message run 99999 int %expect | run 00000 0 run 12345 12345 run 99999 99999 | let run test 2 in Stdio print_s %message run 00 int Stdio print_s %message run 21 int Stdio print_s %message run 55 int Stdio print_s %message run 99 int %expect | run 00 0 run 21 21 run 55 55 run 99 99 |</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "In the Binary Coded Decimal (BCD) system we represent decimal numbers in a binary format.",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "The format uses 4 bits per decimal digit to encode the numbers 0 through 9. For example,",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "the number 971 would be represented in BCD as:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "",
+      "snippet" : "  9    7    1\n|1001|0111|0001|",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "id" : "converting-to-binary",
+      "additionalIds" : [ ],
+      "title" : "Converting to Binary",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To convert a BCD number to a binary number we need to do some multiplications by powers",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "of 10. First we split the input vector into parts of width 4 then compute ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "9*100 + 7*10 + 1",
+          "type" : "InlinedCode"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We can do something a little more efficient by starting with the top most digit and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "computing ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "(((9*10) + 7) * 10) + 1",
+          "type" : "InlinedCode"
+        } ]
+      } ]
+    }, {
+      "id" : "implementing-in-hardware",
+      "additionalIds" : [ ],
+      "title" : "Implementing in Hardware",
+      "type" : "Section",
+      "content" : [ {
+        "lang" : "ocaml",
+        "snippet" : "let create ~clock ~start ~bcd =\n  let spec = Reg_spec.create ~clock () in\n  (* Find the number of digits to convert and create a counter. *)\n  let digits = split_msb ~part_width:4 bcd in\n  let num_digits = List.length digits in\n  (* We only support multiple digits - for a single digit the output equals the input\n     anyway. *)\n  assert (num_digits > 1);\n  let count = Always.Variable.reg spec ~width:(Int.ceil_log2 num_digits) in\n  (* Create an accumulator large enough to hold the final result. *)\n  let max_result = Int.pow 10 num_digits - 1 in\n  let acc = Always.Variable.reg spec ~width:(num_bits_to_represent max_result) in\n  (* Select the current digit being processed. Note that when we split [bcd] into [digits]\n     we did so from the top most digit. *)\n  let digit = mux count.value digits |> uresize ~width:(width acc.value) in\n  Always.(\n    compile\n      [ if_\n          (count.value ==:. 0)\n          [ (* Wait for start. When applied set the accumulator with the top most digit.\n            *)\n            when_ start [ count <-- count.value +:. 1; acc <-- digit ]\n          ]\n          [ (* Add each succesive digit to the accumulator times 10. *)\n            count <-- count.value +:. 1\n          ; acc <-- drop_top (acc.value *: of_unsigned_int ~width:4 10) ~width:4 +: digit\n          ; (* Finished processing digits. *)\n            when_ (count.value ==:. num_digits - 1) [ count <--. 0 ]\n          ]\n      ]);\n  acc.value, count.value ==:. 0\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We start by figuring out how many digits we need to process and a counter from",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "0..num_digits-1",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is created. An accumulator is also created wide enough to hold the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "largest result value.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "BlockQuote",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "📝 An assertion is raised if num_digits is equal to 1. This is because the ",
+            "type" : "SimpleText"
+          }, {
+            "code" : "count",
+            "type" : "InlinedCode"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "register has width ",
+            "type" : "SimpleText"
+          }, {
+            "code" : "Int.ceil_log2 num_digits = 0",
+            "type" : "InlinedCode"
+          }, {
+            "text" : " which you aren't allowed to do. It is",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "not unusual for otherwise generic hardcaml circuit generators to fall down on the",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "smallest example in this way, though it often tends to be a trivial case (here, the",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "circuit literally does nothing if there is only 1 digit) and can often be worked around.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "While ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "count",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is 0 we are waiting for ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "start",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " to be raised. Then, for ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "num_digits",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " cycles",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "we will add each digit (starting from the top most) to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "acc * 10",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". When ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "count ==:. num_digits-1",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " we have computed the result and set ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "count",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " back to 0.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "testbench",
+      "additionalIds" : [ ],
+      "title" : "Testbench",
+      "type" : "Section",
+      "content" : [ {
+        "lang" : "ocaml",
+        "snippet" : "let bcd_of_string v =\n  String.to_list v\n  |> List.map ~f:(fun c ->\n    Char.to_int c - Char.to_int '0' |> Bits.of_unsigned_int ~width:4)\n  |> Bits.concat_msb\n;;\n\nlet test num_digits =\n  (* Create the simulator. *)\n  let sim =\n    let result, done_ =\n      create\n        ~clock:(input \"clock\" 1)\n        ~start:(input \"start\" 1)\n        ~bcd:(input \"bcd\" (num_digits * 4))\n    in\n    Circuit.create_exn ~name:\"bcd\" [ output \"result\" result; output \"done\" done_ ]\n    |> Cyclesim.create\n  in\n  (* Query the input and output ports. *)\n  let start = Cyclesim.in_port sim \"start\" in\n  let bcd = Cyclesim.in_port sim \"bcd\" in\n  let done_ = Cyclesim.out_port sim \"done\" in\n  let result = Cyclesim.out_port sim \"result\" in\n  (* Start the circuit running and wait for it to be done. Return the computed result. *)\n  let run v =\n    start := Bits.vdd;\n    bcd := bcd_of_string v;\n    Cyclesim.cycle sim;\n    start := Bits.gnd;\n    Cyclesim.cycle sim;\n    while not (Bits.to_bool !done_) do\n      Cyclesim.cycle sim\n    done;\n    Bits.to_unsigned_int !result\n  in\n  run\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The following steps are performed",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Create the BCD design.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Create a ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Circuit",
+              "type" : "InlinedCode"
+            }, {
+              "text" : ".",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Create a ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Cyclesim",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " simulator.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Get the simulator ports.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Return a function which performs a single test - start the circuit with a BCD value,",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "wait for it to complete and return the result.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "test",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function doesn't actually compute a BCD, but it does do all the setup stuff",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "(which can be time consuming for larger designs). It returns a function that allows us to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "run multiple conversions one after the other.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "tests",
+      "additionalIds" : [ ],
+      "title" : "Tests",
+      "type" : "Section",
+      "content" : [ {
+        "lang" : "ocaml",
+        "snippet" : "let%expect_test \"\" =\n  let run = test 5 in\n  Stdio.print_s [%message (run \"00000\" : int)];\n  Stdio.print_s [%message (run \"12345\" : int)];\n  Stdio.print_s [%message (run \"99999\" : int)];\n  [%expect\n    {|\n    (\"run \\\"00000\\\"\" 0)\n    (\"run \\\"12345\\\"\" 12345)\n    (\"run \\\"99999\\\"\" 99999)\n    |}];\n  let run = test 2 in\n  Stdio.print_s [%message (run \"00\" : int)];\n  Stdio.print_s [%message (run \"21\" : int)];\n  Stdio.print_s [%message (run \"55\" : int)];\n  Stdio.print_s [%message (run \"99\" : int)];\n  [%expect\n    {|\n    (\"run \\\"00\\\"\" 0)\n    (\"run \\\"21\\\"\" 21)\n    (\"run \\\"55\\\"\" 55)\n    (\"run \\\"99\\\"\" 99)\n    |}]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443086,
+    "tocItem" : {
+      "chapterTitle" : "More On Circuit Design",
+      "pageTitle" : "4.2.1 BCD Conversion",
+      "pageMeta" : {
+        "parent" : [ "always.mdx" ],
+        "title" : [ "4.2.1 BCD Conversion" ],
+        "uuid" : [ "19f5e4b4-0c6a-3ef8-69f6-9f84cea5ca55" ]
+      },
+      "dirName" : "more-on-circuit-design",
+      "fileName" : "binary_coded_decimal",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Converting to Binary",
+        "id" : "converting-to-binary",
+        "customAnchorId" : "converting-to-binary"
+      }, {
+        "title" : "Implementing in Hardware",
+        "id" : "implementing-in-hardware",
+        "customAnchorId" : "implementing-in-hardware"
+      }, {
+        "title" : "Testbench",
+        "id" : "testbench",
+        "customAnchorId" : "testbench"
+      }, {
+        "title" : "Tests",
+        "id" : "tests",
+        "customAnchorId" : "tests"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

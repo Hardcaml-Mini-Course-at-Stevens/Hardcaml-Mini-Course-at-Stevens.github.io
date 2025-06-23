@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 2.2.10 Synchronous FIFO</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<header><h1>Synchronous FIFO</h1></header>
+<p>A synchronous FIFO First In First Out buffer provides temporary storage between circuits that process data at different rates but share the same clock domain It allows a producer to write data when ready and a consumer to read it later while maintaining the original order of the data Verilog VHDL Hardcaml module sync_fifo input clock clear write read input 15 0 data_in output reg 15 0 data_out output full empty reg 2 0 wptr rptr reg 15 0 mem 0 7 assign full wptr 1 rptr assign empty wptr rptr wire write_incr write &amp; full wire read_incr read &amp; empty always @ posedge clock begin if clear begin rptr &lt; 0 wptr &lt; 0 end else begin if write_incr wptr &lt; wptr 1 if read_incr rptr &lt; rptr 1 end if write_incr mem wptr &lt; data_in if read_incr data_out &lt; mem rptr end endmodule library ieee use ieee std_logic_1164 all use ieee numeric_std all entity sync_fifo is port clock clear write read in std_logic data_in in std_logic_vector 15 downto 0 data_out out std_logic_vector 15 downto 0 full empty out std_logic end entity architecture rtl of sync_fifo is type mem_t is array 0 to 7 of std_logic_vector 15 downto 0 signal mem mem_t signal wptr rptr unsigned 2 downto 0 signal write_incr std_logic signal read_incr std_logic signal full_int std_logic signal empty_int std_logic begin full_int &lt; 1 when wptr 1 rptr else 0 empty_int &lt; 1 when wptr rptr else 0 full &lt; full_int empty &lt; empty_int write_incr &lt; write and not full_int read_incr &lt; read and not full_int process clock begin if rising_edge clock then if clear 1 then rptr &lt; others &gt; 0 wptr &lt; others &gt; 0 else if write_incr 1 then wptr &lt; wptr 1 end if if read_incr 1 then rptr &lt; rptr 1 end if end if if write_incr 1 then mem to_integer wptr &lt; data_in end if if read_incr 1 then data_out &lt; mem to_integer rptr end if end if end process end architecture type t data_out Signal t full Signal t empty Signal t let sync_fifo clock clear write read data_in let spec Reg_spec create clock clear in let wptr wire log_depth in let wptr_next wptr 1 in let rptr wire log_depth in let full wptr_next rptr in let empty wptr rptr in let write_enable write &amp; full in let read_enable read &amp; empty in let mem Ram create collision_mode Write_before_read size depth write_ports | write_clock clock write_data data_in write_enable write_address wptr | read_ports | read_clock clock read_enable read_address rptr | in wptr &lt; reg spec enable write_enable wptr_next rptr &lt; reg spec enable read_enable rptr 1 data_out mem 0 full empty</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "id" : "synchronous-fifo",
+      "additionalIds" : [ ],
+      "title" : "Synchronous FIFO",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A synchronous FIFO (First-In First-Out) buffer provides temporary storage between circuits",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "that process data at different rates but share the same clock domain. It allows a producer",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "to write data when ready and a consumer to read it later, while maintaining the original",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "order of the data.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "synchronous-fifo-verilog",
+        "additionalIds" : [ "verilog" ],
+        "level" : 2,
+        "title" : "Verilog",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "verilog",
+        "snippet" : "module sync_fifo (\n  input clock, clear, write, read,\n  input [15:0] data_in,\n  output reg [15:0] data_out,\n  output full, empty\n);\n\n  reg [2:0] wptr, rptr;\n  reg [15:0] mem[0:7];\n\n  assign full = (wptr + 1) == rptr;\n  assign empty = wptr == rptr;\n\n  wire write_incr = write & !full;\n  wire read_incr = read & !empty;\n\n  always @(posedge clock) begin\n    if (clear) begin\n      rptr <= 0;\n      wptr <= 0;\n    end else begin\n      if (write_incr) wptr <= wptr + 1;\n      if (read_incr) rptr <= rptr + 1;\n    end\n    if (write_incr) mem[wptr] <= data_in;\n    if (read_incr) data_out <= mem[rptr];\n  end\n\nendmodule",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "synchronous-fifo-vhdl",
+        "additionalIds" : [ "vhdl" ],
+        "level" : 2,
+        "title" : "VHDL",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "",
+        "snippet" : "library ieee;\nuse ieee.std_logic_1164.all;\nuse ieee.numeric_std.all;\n\nentity sync_fifo is\n  port (\n    clock, clear, write, read : in std_logic;\n    data_in : in std_logic_vector(15 downto 0);\n    data_out : out std_logic_vector(15 downto 0);\n    full, empty : out std_logic\n  );\nend entity;\n\narchitecture rtl of sync_fifo is\n  type mem_t is array (0 to 7) of std_logic_vector(15 downto 0);\n  signal mem : mem_t;\n\n  signal wptr, rptr : unsigned(2 downto 0);\n  signal write_incr : std_logic;\n  signal read_incr : std_logic;\n  signal full_int : std_logic;\n  signal empty_int : std_logic;\nbegin\n\n  full_int <= '1' when (wptr + 1) = rptr else '0';\n  empty_int <= '1' when wptr = rptr else '0';\n  full <= full_int;\n  empty <= empty_int;\n\n  write_incr <= write and (not full_int);\n  read_incr <= read and (not full_int);\n\n  process (clock) begin\n    if rising_edge(clock) then\n      if clear = '1' then\n        rptr <= (others => '0');\n        wptr <= (others => '0');\n      else\n        if write_incr = '1' then \n          wptr <= wptr + 1;\n        end if;\n        if read_incr = '1' then \n          rptr <= rptr + 1;\n        end if;\n      end if;\n\n      if write_incr = '1' then\n        mem(to_integer(wptr)) <= data_in;\n      end if;\n      if read_incr = '1' then\n        data_out <= mem(to_integer(rptr));\n      end if;\n    end if;\n  end process;\nend architecture;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "synchronous-fifo-hardcaml",
+        "additionalIds" : [ "hardcaml" ],
+        "level" : 2,
+        "title" : "Hardcaml",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "type t =\n  { data_out : Signal.t\n  ; full : Signal.t\n  ; empty : Signal.t\n  }\n\nlet sync_fifo ~clock ~clear ~write ~read ~data_in =\n  let spec = Reg_spec.create ~clock ~clear () in\n  let wptr = wire log_depth in\n  let wptr_next = wptr +:. 1 in\n  let rptr = wire log_depth in\n  let full = wptr_next ==: rptr in\n  let empty = wptr ==: rptr in\n  let write_enable = write &: ~:full in\n  let read_enable = read &: ~:empty in\n  let mem =\n    Ram.create\n      ~collision_mode:Write_before_read\n      ~size:depth\n      ~write_ports:\n        [| { write_clock = clock\n           ; write_data = data_in\n           ; write_enable\n           ; write_address = wptr\n           }\n        |]\n      ~read_ports:[| { read_clock = clock; read_enable; read_address = rptr } |]\n      ()\n  in\n  wptr <-- reg spec ~enable:write_enable wptr_next;\n  rptr <-- reg spec ~enable:read_enable (rptr +:. 1);\n  { data_out = mem.(0); full; empty }\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709444037,
+    "tocItem" : {
+      "chapterTitle" : "Designing Circuits",
+      "pageTitle" : "2.2.10 Synchronous FIFO",
+      "pageMeta" : {
+        "parent" : [ "sequential_logic.mdx" ],
+        "title" : [ "2.2.10 Synchronous FIFO" ],
+        "uuid" : [ "34b3ffff-d244-3b60-7a99-3cfb1e70a769" ]
+      },
+      "dirName" : "designing-circuits",
+      "fileName" : "sync_fifo",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Synchronous FIFO",
+        "id" : "synchronous-fifo",
+        "customAnchorId" : "synchronous-fifo"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

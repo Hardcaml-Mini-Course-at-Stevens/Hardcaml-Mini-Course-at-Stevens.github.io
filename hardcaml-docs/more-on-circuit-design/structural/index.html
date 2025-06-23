@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 4.5 Working with Structural</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p></p>
+</article>
+
+<article>
+<header><h1>What is it?</h1></header>
+<p>Structural provides functions to generate hardware circuits In fact its functionality is very similar to right down to supporting the standard Comb S API That said there are some difference with respect the s and s Introducing tristates Structural is not quite as silly as it seems There is something that Hardcaml s do not support that we sometimes need tristate values A tristate value also called a three state value is a digital signal that can exist in one of three possible states Logic high 1 Logic low 0 High impedance Z First of all why don t s support tristates They could but it would make many internal parts of the library much more complicated to do so Indeed all the backend generators simulators and so on would need to be updated to support them and we would also have to use a multi value logic type to do this properly So instead we provide a cut down version of which supports tristates instantiation writing to Verilog and nothing else Why do we need tristates Most of the time we don t They are not generally used inside most logic designs However when we interact with the outside world ie via the pins on a chip we quite often DO need to support tristates Some chips will use tristate signals to daisy chain multiple devices or reduce pin count If we didn t provide a way to describe tristates the top level most module of a full hardware design would still need to be described in a traditional HDL like Verilog This is what is for describing a design top level where we need support for tristates Hardcaml Signal instantiation wire Signal Signal Structural Signal Structural</p>
+</article>
+
+<article>
+<header><h1>API</h1></header>
+<p>Circuits In structural signals are recorded into a database rather than discovered dynamically as with s To do this we must first call and when done call Ports Input ports are created with Output ports are created with Tristate ports are created with Instantiation Instantiations work a little differently than with s The inputs outputs and tristate ports of the instantiated circuit are all passed to the function Basic example Circuits must have unique names API functions A small set of functions are natively supported by and In addition assignment is performed with Using Lib The complete API be provided by instantiating the functor note this must be done within a started circuit This uses hardcaml to create implementations for each operation and allows them to be instantiated within circuits We have used a new function here called It will automatically call and and return the generated structural circuit The and functions have created instantiations for the operators We can get their implementations as follows Describing a tristate mux Tristate logic can also be generated by rather than just passing through wires Signal start_circuit name end_circuit mk_input mk_output mk_tristate Signal inst # open Hardcaml Structural # let gen start_circuit example let i mk_input i 1 in let o mk_output o 1 in let t mk_tristate t 1 in inst inner i i &gt; i o o &gt; o t t &gt; t end_circuit to_verilog find_circuit example |&gt; Rope to_string |&gt; print_string val gen unit &gt; unit &lt;fun&gt; # gen module example input i output o inout t inner _4 i i o o t t endmodule unit # gen Exception Hardcaml__Structural Circuit_already_exists example Structural of_bit_string mux concat_msb select &lt; # let gen start_circuit example2 let i mk_input i 3 in let o mk_output o 2 in o &lt; concat_msb of_bit_string 1 mux select i high 0 low 0 select i high 1 low 1 select i high 2 low 2 end_circuit to_verilog find_circuit example2 |&gt; Rope to_string |&gt; print_string val gen unit &gt; unit &lt;fun&gt; # gen module example2 input 2 0 i output 1 0 o wire _3 wire _4 wire _5 wire _6 wire _7 wire 1 0 _8 assign _3 i 2 2 assign _4 i 1 1 assign _5 i 0 0 assign _6 _5 0 _4 _3 assign _7 1 b1 assign _8 _7 _6 assign o _8 endmodule unit Comb Structural Lib Structural # let circuit create_circuit example3 fun &gt; let open Lib in let a mk_input a 3 in let b mk_input b 3 in let addsub mk_input addsub 1 in let c mk_output c 3 in c &lt; mux2 addsub a b a b val circuit circuit &lt;abstr&gt; # to_verilog circuit |&gt; Rope to_string |&gt; print_string module example3 input 2 0 a input 2 0 b input addsub output 2 0 c wire _1 wire _2 wire 2 0 _7 wire 2 0 _9 wire 2 0 _11 assign _1 1 b1 assign _2 1 b0 assign _11 addsub 0 _7 _9 assign c _11 hardcaml_lib_sub_3 _8 i0 a i1 b o _7 hardcaml_lib_add_3 _10 i0 a i1 b o _9 endmodule unit create_circuit start_circuit end_circuit # let components structural_rtl_components circuit val components Base Set M Hardcaml Structural Structural_rtl_component t &lt;abstr&gt; # Set iter components f fun subcircuit &gt; let subcircuit Structural_rtl_component rtl_circuit subcircuit in Hardcaml Rtl print Verilog subcircuit module hardcaml_lib_add_3 i1 i0 o input 2 0 i1 input 2 0 i0 output 2 0 o wire 2 0 _4 assign _4 i0 i1 assign o _4 endmodule module hardcaml_lib_sub_3 i1 i0 o input 2 0 i1 input 2 0 i0 output 2 0 o wire 2 0 _4 assign _4 i0 i1 assign o _4 endmodule unit Structural # let circuit create_circuit example4 fun &gt; let d mk_input d 1 in let sel mk_input sel 1 in let t mk_tristate t 1 in t &lt; mux sel d z 1 val circuit circuit &lt;abstr&gt; # to_verilog circuit |&gt; Rope to_string |&gt; print_string module example4 input d input sel inout t wire _4 wire _5 assign _4 1 bz assign _5 sel 0 d _4 assign t _5 endmodule unit</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "id" : "what-is-it",
+      "additionalIds" : [ ],
+      "title" : "What is it?",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Structural provides functions to generate hardware circuits. In fact its functionality is",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "very similar to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hardcaml.Signal",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", right down to supporting the standard Comb.S API.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "That said, there are some difference with respect the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "instantiation",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "wire",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "what-is-it-introducing-tristates",
+        "additionalIds" : [ "introducing-tristates" ],
+        "level" : 2,
+        "title" : "Introducing tristates",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Structural is not quite as silly as it seems. There is something that Hardcaml ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Signal",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "do not support that we sometimes need - tristate values. A tristate value (also called a",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "three-state value) is a digital signal that can exist in one of three possible states:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Logic high (1).",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Logic low (0).",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "High impedance (Z).",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "First of all - why don't ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Signal",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s support tristates? They ",
+          "type" : "SimpleText"
+        }, {
+          "type" : "Emphasis",
+          "content" : [ {
+            "text" : "could",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " but it would make many",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "internal parts of the library much more complicated to do so. Indeed, all the backend",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "generators, simulators, and so on would need to be updated to support them, and we would",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "also have to use a multi-value logic type to do this properly.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "So instead we provide ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Structural",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " - a cut down version of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Signal",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " which supports",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "tristates, instantiation, writing to Verilog, and nothing else.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "what-is-it-why-do-we-need-tristates",
+        "additionalIds" : [ "why-do-we-need-tristates" ],
+        "level" : 2,
+        "title" : "Why do we need tristates?",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Most of the time we don't. They are not generally used inside most logic designs. However,",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "when we interact with the outside world (ie via the pins on a chip) we quite often ",
+          "type" : "SimpleText"
+        }, {
+          "type" : "Emphasis",
+          "content" : [ {
+            "text" : "DO",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "need to support tristates. Some chips will use tristate signals to daisy chain multiple",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "devices or reduce pin count.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "If we didn't provide a way to describe tristates the top level most module of a full",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "hardware design would still need to be described in a traditional HDL like Verilog. This",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "is what ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Structural",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is for - describing a design top level where we need support for",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "tristates.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "api",
+      "additionalIds" : [ ],
+      "title" : "API",
+      "type" : "Section",
+      "content" : [ {
+        "id" : "api-circuits",
+        "additionalIds" : [ "circuits" ],
+        "level" : 2,
+        "title" : "Circuits",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In structural, signals are recorded into a database rather than discovered dynamically as",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "with ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Signal",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To do this we must first call ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "start_circuit name",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and when done call ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "end_circuit ()",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "api-ports",
+        "additionalIds" : [ "ports" ],
+        "level" : 2,
+        "title" : "Ports",
+        "type" : "SubHeading"
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Input ports are created with ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "mk_input",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Output ports are created with ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "mk_output",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Tristate ports are created with ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "mk_tristate",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        } ]
+      }, {
+        "id" : "api-instantiation",
+        "additionalIds" : [ "instantiation" ],
+        "level" : 2,
+        "title" : "Instantiation",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Instantiations work a little differently than with ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Signal",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s. The inputs, outputs and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "tristate ports of the instantiated circuit are all passed to the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "inst",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "api-basic-example",
+        "additionalIds" : [ "basic-example" ],
+        "level" : 2,
+        "title" : "Basic example",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# open Hardcaml.Structural\n# let gen () =\n    start_circuit \"example\";\n    let i = mk_input \"i\" 1 in\n    let o = mk_output \"o\" 1 in\n    let t = mk_tristate \"t\" 1 in\n    inst \"inner\" ~i:[ \"i\" ==> i ] ~o:[ \"o\" ==> o ] ~t:[ \"t\" ==> t ];\n    end_circuit ();\n    to_verilog (find_circuit \"example\") |> Rope.to_string |> print_string\nval gen : unit -> unit = <fun>\n# gen ()\nmodule example\n(\n  input i,\n  output o,\n  inout t\n);\n\n  inner _4\n  (\n    .i(i),\n    .o(o),\n    .t(t)\n  );\nendmodule\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Circuits must have unique names.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# gen ()\nException: Hardcaml__Structural.Circuit_already_exists(\"example\").",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "api-api-functions",
+        "additionalIds" : [ "api-functions" ],
+        "level" : 2,
+        "title" : "API functions",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A small set of functions are natively supported by ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Structural",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " - ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "of_bit_string",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "mux",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ",",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "concat_msb",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "select",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In addition, assignment is performed with ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "<--",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let gen () =\n    start_circuit \"example2\";\n    let i = mk_input \"i\" 3 in\n    let o = mk_output \"o\" 2 in\n    o <--\n        concat_msb\n            [ of_bit_string \"1\"\n            ; mux\n                (select i ~high:0 ~low:0)\n                [ select i ~high:1 ~low:1\n                ; select i ~high:2 ~low:2 ]\n            ];\n    end_circuit ();\n    to_verilog (find_circuit \"example2\") |> Rope.to_string |> print_string\nval gen : unit -> unit = <fun>\n# gen ()\nmodule example2\n(\n  input [2:0] i,\n  output [1:0] o\n);\n\n  wire _3;\n  wire _4;\n  wire _5;\n  wire _6;\n  wire _7;\n  wire [1:0] _8;\n  assign _3 = i[2:2];\n  assign _4 = i[1:1];\n  assign _5 = i[0:0];\n  assign _6 =\n    _5 == 0 ? _4 :\n    _3;\n  assign _7 = 1'b1;\n  assign _8 = { _7, _6 };\n  assign o = _8;\nendmodule\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "api-api-functions-using-lib",
+        "additionalIds" : [ "using-lib" ],
+        "level" : 3,
+        "title" : "Using Lib",
+        "headingContent" : [ {
+          "text" : "Using ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Lib",
+          "type" : "InlinedCode"
+        } ],
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The complete ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Comb",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " API be provided by instantiating the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Structural.Lib",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " functor (note",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "this must be done within a 'started' circuit). This uses hardcaml to create",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "implementations for each operation and allows them to be instantiated within ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Structural",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "circuits.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let circuit =\n    create_circuit \"example3\" (fun () ->\n      let open Lib () in\n      let a = mk_input \"a\" 3 in\n      let b = mk_input \"b\" 3 in\n      let addsub = mk_input \"addsub\" 1 in\n      let c = mk_output \"c\" 3 in\n      c <-- mux2 addsub (a +: b) (a -: b));;\nval circuit : circuit = <abstr>\n# to_verilog circuit |> Rope.to_string |> print_string\nmodule example3\n(\n  input [2:0] a,\n  input [2:0] b,\n  input addsub,\n  output [2:0] c\n);\n\n  wire _1;\n  wire _2;\n  wire [2:0] _7;\n  wire [2:0] _9;\n  wire [2:0] _11;\n  assign _1 = 1'b1;\n  assign _2 = 1'b0;\n  assign _11 =\n    addsub == 0 ? _7 :\n    _9;\n  assign c = _11;\n  hardcaml_lib_sub_3 _8\n  (\n    .i0(a),\n    .i1(b),\n    .o(_7)\n  );\n  hardcaml_lib_add_3 _10\n  (\n    .i0(a),\n    .i1(b),\n    .o(_9)\n  );\nendmodule\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We have used a new function here called ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "create_circuit",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". It will automatically call",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "start_circuit",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "end_circuit",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and return the generated structural circuit.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "(+:)",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "(-:)",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " functions have created instantiations for the operators. We can get",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "their implementations as follows:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let components = structural_rtl_components circuit\nval components : Base.Set.M(Hardcaml.Structural.Structural_rtl_component).t =\n  <abstr>\n# Set.iter components ~f:(fun subcircuit ->\n    let subcircuit = Structural_rtl_component.rtl_circuit subcircuit in\n    Hardcaml.Rtl.print Verilog subcircuit)\nmodule hardcaml_lib_add_3 (\n    i1,\n    i0,\n    o\n);\n\n    input [2:0] i1;\n    input [2:0] i0;\n    output [2:0] o;\n\n    wire [2:0] _4;\n    assign _4 = i0 + i1;\n    assign o = _4;\n\nendmodule\nmodule hardcaml_lib_sub_3 (\n    i1,\n    i0,\n    o\n);\n\n    input [2:0] i1;\n    input [2:0] i0;\n    output [2:0] o;\n\n    wire [2:0] _4;\n    assign _4 = i0 - i1;\n    assign o = _4;\n\nendmodule\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "api-describing-a-tristate-mux",
+        "additionalIds" : [ "describing-a-tristate-mux" ],
+        "level" : 2,
+        "title" : "Describing a tristate mux",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Tristate logic can also be generated by ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Structural",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " rather than just passing through wires.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let circuit =\n    create_circuit \"example4\" (fun () ->\n      let d = mk_input \"d\" 1 in\n      let sel = mk_input \"sel\" 1 in\n      let t = mk_tristate \"t\" 1 in\n      t <-- mux sel [d; (z 1)])\nval circuit : circuit = <abstr>\n# to_verilog circuit |> Rope.to_string |> print_string\nmodule example4\n(\n  input d,\n  input sel,\n  inout t\n);\n\n  wire _4;\n  wire _5;\n  assign _4 = 1'bz;\n  assign _5 =\n    sel == 0 ? d :\n    _4;\n  assign t = _5;\nendmodule\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443888,
+    "tocItem" : {
+      "chapterTitle" : "More On Circuit Design",
+      "pageTitle" : "4.5 Working with Structural",
+      "pageMeta" : {
+        "parent" : [ "more_design.mdx" ],
+        "title" : [ "4.5 Working with Structural" ],
+        "uuid" : [ "8be661fd-fa65-396c-8b5a-661ef81afa58" ]
+      },
+      "dirName" : "more-on-circuit-design",
+      "fileName" : "structural",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "What is it?",
+        "id" : "what-is-it",
+        "customAnchorId" : "what-is-it"
+      }, {
+        "title" : "API",
+        "id" : "api",
+        "customAnchorId" : "api"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

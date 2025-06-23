@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 6.1 Counter</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>The following is a simple 8 bit counter It resets back to 0 when the clear signal is high and counts up when the incr signal is high Otherwise it holds its previous value Design This design although simple shows the usual pattern for defining a circuit in Hardcaml The inputs and outputs of the circuit are specified using interfaces and the circuit is built using a function which takes an input interface and returns an output interface The implementation uses the function This constructs a register with feedback Let s look at each argument in turn packages up the and synchronous clear There are various other arguments which can control an asynchronous reset rising or falling clock edge and so on when high the register will load a new value Otherwise it holds its previous value is the bit width of the register this function receives the current value of the register and computes the next value In this case it increments it by one Testbench The following is a simple testbench for the counter which shows its behavior for different values of and The purpose of a testbench is to set values for the inputs of a circuit and check what values this causes the outputs to take over time Two other implementations With a wire The following implementation shows what is actually happening within the function First a wire is created that can be read when we construct a register It is assigned after we have the register output Wires allow us to describe cyclic logic structures in Hardcaml Note that all such cycles in a hardware design must pass through a sequential element such as a register or memory Cyclic paths that do not are called combinational loops and Hardcaml will detect and raise an error if one is found With the Always DSL We can also describe the counter with the Always DSL Note that we could have encoded the clear and increment logic when we constructed the The Always fragment would then have only consisted of an assignment to open Hardcaml open Hardcaml Signal open Hardcaml_waveterm module I struct type a t clock a clear a incr a @@deriving hardcaml end module O struct type a t dout a @bits 8 @@deriving hardcaml end # let create i _ I t O dout reg_fb Reg_spec create clock i clock clear i clear enable i incr width 8 f fun d &gt; d 1 val create t I t &gt; t O t &lt;fun&gt; reg_fb Reg_spec t clock signal enable width f clear incr module Simulator Cyclesim With_interface I O # let testbench create_design_fn t I t &gt; t O t * Construct the simulation and get its input and output ports * let sim Simulator create create_design_fn in let inputs _ I t Cyclesim inputs sim in let outputs _ O t Cyclesim outputs sim in * Perform a clock cycle Apply the given values to incr and clear Printf the current values of dout * let step clear incr inputs clear if clear 1 then Bits vdd else Bits gnd inputs incr if incr 1 then Bits vdd else Bits gnd Stdio printf dout %s n Bits to_string outputs dout Cyclesim cycle sim in * Run the counter for 6 clock cycles * step clear 0 incr 0 step clear 0 incr 1 step clear 0 incr 1 step clear 1 incr 0 step clear 0 incr 0 step clear 0 incr 0 val testbench t I t &gt; t O t &gt; unit &lt;fun&gt; # testbench create dout 00000000 dout 00000000 dout 00000001 dout 00000010 dout 00000000 dout 00000000 unit reg_fb # let counter_with_wire i _ I t let w wire 8 in let dout reg Reg_spec create clock i clock clear i clear enable i incr w 1 in w &lt; dout O dout val counter_with_wire t I t &gt; t O t &lt;fun&gt; # testbench counter_with_wire dout 00000000 dout 00000000 dout 00000001 dout 00000010 dout 00000000 dout 00000000 unit Always Variable reg dout # let counter_with_always i _ I t let dout Always Variable reg Reg_spec create clock i clock enable vdd width 8 in Always compile if_ i clear dout &lt; 0 when_ i incr dout &lt; dout value 1 O dout dout value val counter_with_always t I t &gt; t O t &lt;fun&gt; # testbench counter_with_always dout 00000000 dout 00000000 dout 00000001 dout 00000010 dout 00000000 dout 00000000 unit</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The following is a simple 8-bit counter. It resets back to 0 when the clear signal is high",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "and counts up when the incr signal is high. Otherwise, it holds its previous value.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "design",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Design",
+      "type" : "SubHeading"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "open Hardcaml\nopen Hardcaml.Signal\nopen Hardcaml_waveterm\n\nmodule I = struct\n  type 'a t =\n    { clock : 'a\n    ; clear : 'a\n    ; incr : 'a\n    }\n  [@@deriving hardcaml]\nend\n\nmodule O = struct\n  type 'a t =\n    { dout : 'a[@bits 8]\n    }\n  [@@deriving hardcaml]\nend",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let create (i : _ I.t) =\n    { O.dout =\n        reg_fb\n          (Reg_spec.create ~clock:i.clock ~clear:i.clear ())\n          ~enable:i.incr\n          ~width:8\n          ~f:(fun d -> d +:. 1)\n    }\nval create : t I.t -> t O.t = <fun>",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "This design, although simple, shows the usual pattern for defining a circuit in Hardcaml.",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "The inputs and outputs of the circuit are specified using interfaces, and the circuit is",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "built using a function which takes an input interface and returns an output interface.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The implementation uses the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "reg_fb",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " function. This constructs a register with feedback.",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "Let's look at each argument in turn.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "bulletMarker" : "-",
+      "tight" : true,
+      "type" : "BulletList",
+      "content" : [ {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "code" : "Reg_spec.t",
+            "type" : "InlinedCode"
+          }, {
+            "text" : " packages up the ",
+            "type" : "SimpleText"
+          }, {
+            "code" : "clock",
+            "type" : "InlinedCode"
+          }, {
+            "text" : " and synchronous clear ",
+            "type" : "SimpleText"
+          }, {
+            "code" : "signal",
+            "type" : "InlinedCode"
+          }, {
+            "text" : ". There are various",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "other arguments which can control an asynchronous reset, rising or falling clock edge",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "and so on.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "code" : "enable",
+            "type" : "InlinedCode"
+          }, {
+            "text" : ": when high the register will load a new value. Otherwise, it holds its previous",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "value.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "code" : "width",
+            "type" : "InlinedCode"
+          }, {
+            "text" : " is the bit width of the register.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "code" : "f",
+            "type" : "InlinedCode"
+          }, {
+            "text" : ": this function receives the current value of the register, and computes the next",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "value. In this case, it increments it by one.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      } ]
+    }, {
+      "id" : "testbench",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Testbench",
+      "type" : "SubHeading"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The following is a simple testbench for the counter which shows its behavior for",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "different values of ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "clear",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " and ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "incr",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ".",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The purpose of a testbench is to set values for the inputs of a circuit and check what",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "values this causes the outputs to take over time.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "module Simulator = Cyclesim.With_interface(I)(O)",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let testbench (create_design_fn : t I.t -> t O.t) =\n    (* Construct the simulation and get its input and output ports. *)\n    let sim = Simulator.create create_design_fn in\n    let inputs : _ I.t = Cyclesim.inputs sim in\n    let outputs : _ O.t = Cyclesim.outputs sim in\n    (* Perform a clock cycle.  Apply the given values to [incr] and [clear].\n       Printf the current values of [dout]. *)\n    let step ~clear ~incr =\n      inputs.clear := if clear=1 then Bits.vdd else Bits.gnd;\n      inputs.incr := if incr=1 then Bits.vdd else Bits.gnd;\n      Stdio.printf \"dout='%s'\\n\" (Bits.to_string !(outputs.dout));\n      Cyclesim.cycle sim\n    in\n    (* Run the counter for 6 clock cycles. *)\n    step ~clear:0 ~incr:0;\n    step ~clear:0 ~incr:1;\n    step ~clear:0 ~incr:1;\n    step ~clear:1 ~incr:0;\n    step ~clear:0 ~incr:0;\n    step ~clear:0 ~incr:0\n  ;;\nval testbench : (t I.t -> t O.t) -> unit = <fun>\n\n# testbench create\ndout='00000000'\ndout='00000000'\ndout='00000001'\ndout='00000010'\ndout='00000000'\ndout='00000000'\n- : unit = ()",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "id" : "two-other-implementations",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Two other implementations",
+      "type" : "SubHeading"
+    }, {
+      "id" : "two-other-implementations-with-a-wire",
+      "additionalIds" : [ "with-a-wire" ],
+      "level" : 3,
+      "title" : "With a wire",
+      "type" : "SubHeading"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The following implementation shows what is actually happening within the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "reg_fb",
+        "type" : "InlinedCode"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "function. First, a wire is created that can be read when we construct a register. It is",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "assigned after we have the register output.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Wires allow us to describe cyclic logic structures in Hardcaml. Note that all such cycles",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "in a hardware design ",
+        "type" : "SimpleText"
+      }, {
+        "type" : "Emphasis",
+        "content" : [ {
+          "text" : "must",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "text" : " pass through a sequential element such as a register or",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "memory. Cyclic paths that do not are called combinational loops, and Hardcaml will detect",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "and raise an error if one is found.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let counter_with_wire (i : _ I.t) =\n    let w = wire 8 in\n    let dout =\n      reg\n        (Reg_spec.create ~clock:i.clock ~clear:i.clear ())\n        ~enable:i.incr\n        (w +:. 1)\n    in\n    w <-- dout;\n    { O.dout }\nval counter_with_wire : t I.t -> t O.t = <fun>\n# testbench counter_with_wire\ndout='00000000'\ndout='00000000'\ndout='00000001'\ndout='00000010'\ndout='00000000'\ndout='00000000'\n- : unit = ()",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "id" : "two-other-implementations-with-the-always-dsl",
+      "additionalIds" : [ "with-the-always-dsl" ],
+      "level" : 3,
+      "title" : "With the Always DSL",
+      "type" : "SubHeading"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "We can also describe the counter with the ",
+        "type" : "SimpleText"
+      }, {
+        "url" : "/hardcaml-docs/more-on-circuit-design/always",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "text" : "Always DSL",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "text" : ".",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Note that we could have encoded the clear and increment logic when we constructed the",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "code" : "Always.Variable.reg",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ". The Always fragment would then have only consisted of an assignment",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "to ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "dout",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ".",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let counter_with_always (i : _ I.t) =\n    let dout =\n      Always.Variable.reg\n        (Reg_spec.create ~clock:i.clock ())\n        ~enable:vdd\n        ~width:8\n    in\n    Always.(compile [\n        if_ i.clear\n          [ dout <--. 0;]\n          [ when_ i.incr\n            [ dout <-- dout.value +:. 1 ]\n          ]\n    ]);\n    { O.dout = dout.value}\nval counter_with_always : t I.t -> t O.t = <fun>\n# testbench counter_with_always\ndout='00000000'\ndout='00000000'\ndout='00000001'\ndout='00000010'\ndout='00000000'\ndout='00000000'\n- : unit = ()",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    } ],
+    "lastModifiedTime" : 1750709443657,
+    "tocItem" : {
+      "chapterTitle" : "Examples",
+      "pageTitle" : "6.1 Counter",
+      "pageMeta" : {
+        "parent" : [ "examples.mdx" ],
+        "title" : [ "6.1 Counter" ],
+        "uuid" : [ "7173c9ab-66c0-3eea-32c4-0fb788d7850e" ]
+      },
+      "dirName" : "examples",
+      "fileName" : "counter",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

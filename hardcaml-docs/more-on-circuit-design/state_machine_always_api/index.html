@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 4.3 Designing State Machines</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p></p>
+</article>
+
+<article>
+<header><h1>Writing State Machines</h1></header>
+<p>The Always DSL is most commonly used to construct state machines or non trivial sequential logic Hardcaml is shipped with an module to help create state machines A state machine is constructed with the following function The value returned can be used within an Always block Let s look at an example Defining the state type The type must use the and derivers when defining a state machine This state machine will begin in the state and wait for an external signal It will then transition to and back to Just before transitioning back to it will pulse a done signal Although nothing useful is actually implemented here we could imagine the processing states were waiting for network data accessing a RAM or performing some multi step computation Implementing the state machine Notice the function call surrounding the Always DSL Let s look at its type signature What It returns a unit type so how do we retrieve the variable s values Under the hood the always DSL creates regular Hardcaml wires with an empty assignment The call to will assign these wires with the appropriate signals according to the conditions specified in the always block For more information about wires see the Sequential Logic section In particular unassigned wires are fairly common if you miss a variable assignment Simulation Simulating a state machine is no different from simulating any other Hardcaml circuit Let s walk through an example to see the Always DSL in action Always State_machine # open Base # open Hardcaml # open Signal # Always State_machine create encoding Always State_machine Encoding t &gt; auto_wave_format bool &gt; attributes Hardcaml Rtl_attribute t list &gt; enable t &gt; unreachable a list &gt; module Hardcaml Always State_machine State with type t a &gt; Reg_spec t &gt; a Always State_machine t &lt;fun&gt; module States struct type t | Wait_for_start | Process_something | Process_something_else @@deriving sexp_of compare enumerate end States sexp_of compare enumerate Wait_for_start start Process_something Process_something_else Wait_for_start Wait_for_start let clock Signal input clock 1 let clear Signal input clear 1 let r_sync Reg_spec create clock clear let start Signal input start 1 let outputs let open Signal in let sm Always State_machine create module States enable vdd r_sync in let done_ Always Variable wire default gnd in Always compile sm switch Wait_for_start when_ start sm set_next Process_something Process_something sm set_next Process_something_else Process_something_else done_ &lt; 1 sm set_next Wait_for_start Signal output done done_ value * We output the state to help with visualizing in the simulation examples that follows * Signal output state sm current Always compile # Always compile Always t list &gt; unit &lt;fun&gt; Always compile # let let circuit Circuit create_exn name test_statemachine outputs in let sim Cyclesim create circuit in let print_state_and_outputs let state List nth_exn States all Bits to_unsigned_int Cyclesim out_port sim state in let done_ Bits to_bool Cyclesim out_port sim done in Stdio print_s %message state States t done_ bool in Cyclesim reset sim Cyclesim in_port sim clear Bits vdd Cyclesim cycle sim print_state_and_outputs Cyclesim in_port sim clear Bits gnd Cyclesim in_port sim start Bits vdd Cyclesim cycle sim print_state_and_outputs Cyclesim in_port sim start Bits gnd Cyclesim cycle sim print_state_and_outputs Cyclesim cycle sim print_state_and_outputs state Wait_for_start done_ false state Process_something done_ false state Process_something_else done_ true state Wait_for_start done_ false</p>
+</article>
+
+<article>
+<header><h1>Metaprogramming with the Always DSL</h1></header>
+<p>As mentioned above the Always DSL is simply an The gives room for several creative behaviors Function abstractions Since we are really just generating lists from OCaml code we can simply split out some parts of the DSL into different functions For example A few interesting things are happening here We can call as many times as we want Every call to creates a new instance of an accumulator register The caller doesn t know and doesn t care that created a new variable under the hood This is akin to function closures in functional programming a powerful concept made possible in the Always DSL Bearing in mind that we are still generating hardware so all variables in functions are really more like static variables in C this function abstraction is a powerful way of making repetitive complicated state machines much more comprehensible Advanced High order blocks What if we want to create functional blocks that are only executed under a set of non trivial preconditions For example processing data received from some hand shaking protocol In this example we consider a trivial case where only an signal is required The beauty in this approach is that the repetitive hand shaking code is replaced with a high order function call On top of that if the handshaking protocol is modified we can simply update the function without having to rewrite it everywhere it is used Always t list Always t * A useful mental model above is to treat `foo_branch` as a C void function that takes a pointer to write its output value to * let foo_branch o_value Hardcaml Always Variable t let open Signal in let foo Always Variable reg enable vdd width 32 r_sync in Always foo &lt; foo value 1 o_value &lt; foo value let main Always t list let cond Signal input cond 1 in let o_value Always Variable wire default Signal zero 32 in Always if_ cond * proc turns a Always t list to an Always t without changing any semantic meaning of the program * proc foo_branch o_value o_value &lt; 0 foo_branch foo_branch foo_branch accept type stream valid Signal t data Signal t accept Always Variable t let handshake stream callback Always proc when_ stream valid stream accept &lt; 1 proc callback stream data let main stream_a stream stream_b stream let foo Always Variable wire default Signal gnd in let bar Always Variable wire default Signal gnd in Always compile handshake stream_a fun data &gt; Always foo &lt; data handshake stream_b fun data &gt; Always foo &lt; 0 bar &lt; data handshake</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "id" : "writing-state-machines",
+      "additionalIds" : [ ],
+      "title" : "Writing State Machines",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Always/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "Always DSL",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "is most commonly used to construct state machines or",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "non-trivial sequential logic. Hardcaml is shipped with an",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Always/State_machine/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "Always.State_machine",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "module to help create state machines.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A state machine is constructed with the following function:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# open Base\n# open Hardcaml\n# open Signal\n# Always.State_machine.create\n- : ?encoding:Always.State_machine.Encoding.t ->\n    ?auto_wave_format:bool ->\n    ?attributes:Hardcaml.Rtl_attribute.t list ->\n    ?enable:t ->\n    ?unreachable:'a list ->\n    (module Hardcaml.Always.State_machine.State with type t = 'a) ->\n    Reg_spec.t -> 'a Always.State_machine.t\n= <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The value returned can be used within an ",
+          "type" : "SimpleText"
+        }, {
+          "type" : "Emphasis",
+          "content" : [ {
+            "text" : "Always block",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "Let's look at an example.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "writing-state-machines-defining-the-state-type",
+        "additionalIds" : [ "defining-the-state-type" ],
+        "level" : 2,
+        "title" : "Defining the state type",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module States = struct\n  type t =\n    | Wait_for_start\n    | Process_something\n    | Process_something_else\n  [@@deriving sexp_of, compare, enumerate]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "States",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " type must use the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "sexp_of",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "compare",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "enumerate",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " derivers",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "when defining a state machine.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This state machine will begin in the state ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Wait_for_start",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and wait",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "for an external ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "start",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " signal. It will then transition to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Process_something",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Process_something_else",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and back to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Wait_for_start",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". Just before transitioning back to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Wait_for_start",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "it will pulse a done signal.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Although nothing useful is actually implemented here, we could imagine",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the processing states were waiting for network data, accessing a",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "RAM, or performing some multi-step computation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "writing-state-machines-implementing-the-state-machine",
+        "additionalIds" : [ "implementing-the-state-machine" ],
+        "level" : 2,
+        "title" : "Implementing the state machine",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let clock = Signal.input \"clock\" 1\nlet clear = Signal.input \"clear\" 1\nlet r_sync = Reg_spec.create ~clock ~clear ()\nlet start = Signal.input \"start\" 1\n\nlet outputs =\n  let open Signal in\n  let sm =\n    Always.State_machine.create (module States) ~enable:vdd r_sync\n  in\n  let done_ = Always.Variable.wire ~default:gnd () in\n  Always.(compile [\n    sm.switch [\n      Wait_for_start, [\n        when_ start [\n          sm.set_next Process_something;\n        ]\n      ];\n\n      Process_something, [\n        sm.set_next Process_something_else\n      ];\n\n      Process_something_else, [\n        done_ <--. 1;\n        sm.set_next Wait_for_start;\n      ]\n    ]\n  ]);\n  [ Signal.output \"done\" done_.value\n  ; (* We output the [state] to help with visualizing in the\n        simulation examples that follows. *)\n    Signal.output \"state\" sm.current\n  ]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Notice the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Always.compile",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function call surrounding the Always",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "DSL. Let's look at its type signature:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Always.compile\n- : Always.t list -> unit = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "What? It returns a unit type, so how do we retrieve the variable's",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "values? Under the hood, the always DSL creates regular Hardcaml wires",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "with an empty assignment. The call to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Always.compile",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " will assign",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "these wires with the appropriate signals according to the conditions",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "specified in the always block. For more information about wires, see",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "/hardcaml-docs/designing-circuits/sequential_logic",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "Sequential Logic",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " section. In particular,",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "unassigned wires are fairly common if you miss a variable",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "assignment.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "writing-state-machines-simulation",
+        "additionalIds" : [ "simulation" ],
+        "level" : 2,
+        "title" : "Simulation",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Cyclesim/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "Simulating",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "a state machine is no different from simulating any other",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "Hardcaml circuit. Let's walk through an example to see the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "Always DSL in action.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let () =\n    let circuit = Circuit.create_exn ~name:\"test_statemachine\" outputs in\n    let sim = Cyclesim.create circuit in\n    let print_state_and_outputs () =\n      let state =\n        List.nth_exn States.all (Bits.to_unsigned_int !(Cyclesim.out_port sim \"state\"))\n      in\n      let done_ = Bits.to_bool !(Cyclesim.out_port sim \"done\") in\n      Stdio.print_s [%message\n        (state : States.t) (done_ : bool)\n      ]\n    in\n\n    Cyclesim.reset sim;\n    Cyclesim.in_port sim \"clear\" := Bits.vdd;\n    Cyclesim.cycle sim;\n    print_state_and_outputs ();\n    Cyclesim.in_port sim \"clear\" := Bits.gnd;\n\n    Cyclesim.in_port sim \"start\" := Bits.vdd;\n    Cyclesim.cycle sim;\n    print_state_and_outputs ();\n    Cyclesim.in_port sim \"start\" := Bits.gnd;\n\n    Cyclesim.cycle sim;\n    print_state_and_outputs ();\n\n    Cyclesim.cycle sim;\n    print_state_and_outputs ()\n  ;;\n((state Wait_for_start) (done_ false))\n((state Process_something) (done_ false))\n((state Process_something_else) (done_ true))\n((state Wait_for_start) (done_ false))",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "metaprogramming-with-the-always-dsl",
+      "additionalIds" : [ ],
+      "title" : "Metaprogramming with the Always DSL",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "As mentioned above, the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Always/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "Always DSL",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "is simply an ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Always.t list",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". The gives room for several creative behaviors.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "metaprogramming-with-the-always-dsl-function-abstractions",
+        "additionalIds" : [ "function-abstractions" ],
+        "level" : 2,
+        "title" : "Function abstractions",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Since we are really just generating ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Always.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " lists from OCaml code,",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "we can simply split out some parts of the DSL into different",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "functions. For example:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "(* A useful mental model above is to treat `foo_branch` as a \"C void\n   function\" that takes a pointer to write its output value to.\n*)\nlet foo_branch (o_value : Hardcaml.Always.Variable.t) =\n  let open Signal in\n  let foo = Always.Variable.reg ~enable:vdd  ~width:32 r_sync in\n  Always.[\n    foo <-- (foo.value +:. 1);\n    o_value <-- foo.value;\n  ]\n;;\n\nlet main : Always.t list =\n  let cond = Signal.input \"cond\" 1 in\n  let o_value = Always.Variable.wire ~default:(Signal.zero 32) () in\n  Always.[\n    if_ cond [\n      (* [proc] turns a [Always.t list] to an [Always.t], without\n         changing any semantic meaning of the program.\n      *)\n      proc (foo_branch o_value);\n    ] [\n      o_value <--. 0;\n    ]\n  ]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A few interesting things are happening here:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "We can call ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "foo_branch",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " as many times as we want.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Every call to ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "foo_branch",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " creates a new instance of an accumulator",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "register.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "The caller doesn't know (and doesn't care) that ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "foo_branch",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " created",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "a new variable under the hood. This is akin to function closures in",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "functional programming, a powerful concept made possible in the Always DSL.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Bearing in mind that we are still generating hardware (so all",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "variables in functions are really more like \"static variables\" in C), this",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "\"function abstraction\" is a powerful way of making repetitive /",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "complicated state machines much more comprehensible.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "metaprogramming-with-the-always-dsl-advanced-high-order-blocks",
+        "additionalIds" : [ "advanced-high-order-blocks" ],
+        "level" : 2,
+        "title" : "(Advanced) \"High-order\" blocks",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "What if we want to create functional blocks that are only executed",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "under a set of non-trivial preconditions?",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "For example - processing data received from some hand-shaking",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "protocol. In this example, we consider a trivial case where only an",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "accept",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " signal is required.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "type stream =\n  { valid : Signal.t\n  ; data : Signal.t\n  ; accept : Always.Variable.t\n  }\n\nlet handshake stream callback =\n  Always.(proc [\n    when_ stream.valid [\n      stream.accept <--. 1;\n      proc (callback stream.data);\n    ]\n  ])\n;;\n\nlet main (stream_a : stream) (stream_b : stream) =\n  let foo = Always.Variable.wire ~default:Signal.gnd () in\n  let bar = Always.Variable.wire ~default:Signal.gnd () in\n  Always.compile [\n    handshake stream_a (fun data ->\n      Always.[\n        foo <-- data\n      ]\n    );\n\n    handshake stream_b (fun data ->\n      Always.[\n        foo <--. 0;\n        bar <-- ~:(data)\n      ]\n    );\n  ]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The beauty in this approach is that the repetitive",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "hand-shaking code is replaced with a high order function call. On top",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "of that if the handshaking protocol is modified, we can simply update",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "handshake",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function without having to rewrite it everywhere it is",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "used.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443727,
+    "tocItem" : {
+      "chapterTitle" : "More On Circuit Design",
+      "pageTitle" : "4.3 Designing State Machines",
+      "pageMeta" : {
+        "parent" : [ "more_design.mdx" ],
+        "title" : [ "4.3 Designing State Machines" ],
+        "uuid" : [ "16db66d0-f5cb-3457-82c3-07088c26797c" ]
+      },
+      "dirName" : "more-on-circuit-design",
+      "fileName" : "state_machine_always_api",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Writing State Machines",
+        "id" : "writing-state-machines",
+        "customAnchorId" : "writing-state-machines"
+      }, {
+        "title" : "Metaprogramming with the Always DSL",
+        "id" : "metaprogramming-with-the-always-dsl",
+        "customAnchorId" : "metaprogramming-with-the-always-dsl"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

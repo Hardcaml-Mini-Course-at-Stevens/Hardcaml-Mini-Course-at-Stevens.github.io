@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 6.5 Binary Search</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<header><h1>Binary Search</h1></header>
+<p>Binary search allows us to find an element in a sorted array of length in steps It starts by considering the full range of the array and testing the mid point at If the element is found we are done Otherwise if the element at the midpoint is greater than the element we are looking for we repeat with the range set to If it is less we use the range This continues until the element is found or the range becomes empty N log2 N 0 N 1 N 2 0 N 2 N 2 N</p>
+</article>
+
+<article>
+<header><h1>Designing the Hardware Interface</h1></header>
+<p>The elements of the array we search must contain a value by which it is sorted and that the binary search algorithm can use In Ocaml we could represent each element as In Hardcaml we can take a similar approach The hardware design also needs to know the size of the array we are searching and the number of bits in the key Thus we define the following type The hardware design will be fully parameterized by by implementing it within a functor The interface to the design is specified as follows The interface consists of the following logical parts Clocking is an interface which groups together the and signals Control is used to begin the search and indicates when a search is in progress is the key we are searching for and must be provided coincident with and be held during the search operation Array access is the current index we are searching the array at and is the data at that address Output result is the address at which the element was found is the data we found The type of is which was defined as is common pattern in Hardcaml code It wraps a signal or as in this case an with an additional bit If is high the search succeeded and if it is low the search failed the element we were looking for did not exist in the input array key module type Data sig type t val key t &gt; int end module type Data sig include Interface S val key Signal t t &gt; Signal t end Config module type Config sig module Data Data val log_size int val key_size int end Config module Make Config Config struct * hardware implemented here * end module Data_with_valid With_valid Wrap Make Config Data module I struct type a t clocking a Clocking t * Clock and clear * start a * Pulsed to start search * d a Config Data t * Data read at `address` * find_key a @bits Config key_size * Key we are looking for * @@deriving hardcaml end module O struct type a t done_ a * Low while searching * index a @bits Config log_size * Index where key was found * q a Data_with_valid t * Data where key was found * address a @bits Config log_size * Address into search array * @@deriving hardcaml end Clocking clock clear start done_ find_key start address d index q q Data_with_valid module Data_with_valid With_valid Wrap Make Config Data With_valid Interface valid valid</p>
+</article>
+
+<article>
+<header><h1>Implementing the Search</h1></header>
+<p>When start is applied we set the initial range and the state machine transitions to the state The point is output as and the current element is checked if we found the key the search succeeds is set high and the index and data are output otherwise if the mid point equals the low point the search range is 0 and the search fails is set low otherwise if the search key is less than the current key search the left half otherwise if the search key is greater then the current key search the right half module State struct type t | Start | Loop @@deriving sexp_of compare localize enumerate end let create scope i _ I t let%hw Always State_machine sm Always State_machine create module State Clocking to_spec i clocking in * search range * let%hw_var low Clocking Var reg i clocking width Config log_size 1 in let%hw_var mid Clocking Var reg i clocking width Config log_size 1 in let%hw_var high Clocking Var reg i clocking width Config log_size 1 in * results * let index Clocking Var reg i clocking width Config log_size in let q Data_with_valid Of_always reg Clocking to_spec i clocking in let%hw key Config Data key i d in Always compile sm switch Start low &lt; 0 mid &lt; Int pow 2 Config log_size 2 high &lt; Int pow 2 Config log_size when_ i start q valid &lt; gnd sm set_next Loop Loop * success * if_ i find_key key q valid &lt; vdd index &lt; lsbs mid value Config Data Of_always assign q value i d sm set_next Start * failure * @@ elif mid value low value q valid &lt; gnd sm set_next Start * search left half * @@ elif i find_key &lt; key high &lt; mid value mid &lt; low value srl mid value low value by 1 @@ * search right half * low &lt; mid value mid &lt; mid value srl high value mid value by 1 O done_ sm is Start index index value q Data_with_valid Of_always value q address lsbs mid value Loop mid address q valid q valid</p>
+</article>
+
+<article>
+<header><h1>Testing</h1></header>
+<p>Adding the search array To make the testbench simpler to implement we are going to create a top level architecture which include the search array memory The interface to this design has a write port for loading the search data along with the and values The output is the same as before except we don t output and wire this directly into the memory The implementation just instantiates the search array memory and binary search module Writing the testbench Configuring the testbench Define the interface we will search over and the size of the array to search The array size will be 16 elements The key is 6 bits so ranges from 0 to 63 Test functions The testbench is implemented by the following functions clear_core clear reset the registers load_inputs load the array to search run_core start the search wait for it to complete then return the results Testbench Randomized testing We can now perform some randomized testing We create an array of random elements and sort it We then search for some random keys in the array If it doesn t raise all is well Waveform start find_key address module Make_with_memory Config Config struct module Binary_search Make Config module I struct type a t clocking a Clocking t write_enable a write_data a Config Data t write_address a @bits Config log_size start a find_key a @bits Config key_size @@deriving hardcaml end module O struct type a t done_ a index a @bits Config log_size q a Binary_search Data_with_valid t @@deriving hardcaml end let create scope i _ I t let read_address wire Config log_size in let q multiport_memory Int pow 2 Config log_size write_ports | write_clock i clocking clock write_address i write_address write_enable i write_enable write_data Config Data Of_signal pack i write_data | read_addresses | read_address | in let binary_search Binary_search create scope Binary_search I clocking i clocking start i start d Config Data Of_signal unpack q 0 find_key i find_key in read_address &lt; binary_search address O done_ binary_search done_ index binary_search index q binary_search q end Data module Data struct let key_size 6 type a t key a @bits key_size data a @bits 32 @@deriving hardcaml let key t t key end module Config struct module Data Data let key_size Data key_size let log_size 4 end let clear_core sim Sim t let inputs Cyclesim inputs sim in inputs clocking clear &lt; 1 Cyclesim cycle sim inputs clocking clear &lt; 0 let load_inputs sim Sim t input_data int Data t array let inputs Cyclesim inputs sim in inputs write_enable &lt; 1 for i 0 to Int pow 2 Config log_size 1 do inputs write_address &lt; i inputs write_data key &lt; input_data i key inputs write_data data &lt; input_data i data Cyclesim cycle sim done let run_core sim Sim t find_key let inputs Cyclesim inputs sim in let outputs Cyclesim outputs sim in * Start the search * inputs start &lt; 1 Cyclesim cycle sim inputs start &lt; 0 inputs find_key &lt; find_key * Wait for it to finish Don t let it take more than 20 cycles * let timeout ref 0 in while not Bits to_bool outputs done_ &amp;&amp; timeout &lt; 20 do Cyclesim cycle sim Int incr timeout done Cyclesim cycle sim * Collect and return results * let found Bits to_bool outputs q valid in if found then let index Bits to_unsigned_int outputs index in let data Bits to_unsigned_int outputs q value data in let key Bits to_unsigned_int outputs q value key in * Sanity check make sure the key we found was actually the key we were searching for * if key &lt;&gt; find_key then raise_s %message Found wrong key find_key int key int index int data int Some index data else None let validate input_data int Data t array find_key result let key_is_in_input_data match Array find input_data f fun key _ &gt; key find_key with | None &gt; false | _ &gt; true in let raise_search_failed raise_s %message Search failed find_key int key_is_in_input_data bool result int * int option input_data int Config Data t array in match result key_is_in_input_data with | None true &gt; * The hardware didn t find the element but it was there * raise_search_failed | Some _ false &gt; * The hardware found an element but it wasn t there * raise_search_failed | None false &gt; * Nothing to find * | Some index data true &gt; * We found the element check the key and data are as expected * if input_data index key &lt;&gt; find_key || input_data index data &lt;&gt; data then raise_search_failed let test waves input_data find_key let open Hardcaml_waveterm in * Create the simulator * let scope Scope create auto_label_hierarchical_ports true flatten_design true in let sim Sim create config Cyclesim Config trace_all Binary_search create scope in let waves sim * Optionally trace a waveform * if waves then let waves sim Waveform create sim in Some waves sim else None sim in * Run the testbench * clear_core sim load_inputs sim input_data let result run_core sim find_key in * Optionally show the waveform * Option iter waves f Waveform expect_exact wave_width 3 start_cycle 16 display_rules * Check the results are valid * validate input_data find_key result Data let%expect_test random tests for _ 1 to 10 do let input_data Array init Int pow 2 Config log_size f fun _ &gt; Config Data key random_key data random_data in Array sort input_data compare fun key _ key key1 _ &gt; Int compare key key1 for _ 1 to 20 do let find_key random_key in test waves false input_data find_key done done %expect | | let%expect_test debug waveform let input_data Array init Int pow 2 Config log_size f fun i &gt; Config Data key i data i in let find_key 3 in test waves true input_data find_key %expect_exact | SignalsWaves clocking$clock                     clocking$clear      write_enable         write_data$key  15        write_data$data  15        write_address  15     start           find_key  0 3     done_           index  0 3     q$valid          q$value$key  0 3        q$value$data  0 3        low  0 2        mid  8 4 2 3        high  16 8 4        sm  Start Loop Start      c55f6d1c162be347d7d0654ae22a7310 |</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "id" : "binary-search",
+      "additionalIds" : [ ],
+      "title" : "Binary Search",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Binary search allows us to find an element in a sorted array of length ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "N",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " in ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "log2(N)",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "steps.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "It starts by considering the full range of the array ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "0..N-1",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and testing the mid-point at",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "N/2",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". If the element is found we are done. Otherwise if the element at the midpoint is",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "greater than the element we are looking for we repeat with the range set to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "0..N/2",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". If",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "it is less we use the range ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "N/2..N",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". This continues until the element is found, or the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "range becomes empty.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "designing-the-hardware-interface",
+      "additionalIds" : [ ],
+      "title" : "Designing the Hardware Interface",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The elements of the array we search must contain a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "key",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " value by which it is sorted and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "that the binary search algorithm can use.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In Ocaml we could represent each element as:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module type Data = sig \n    type t\n    \n    val key : t -> int\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In Hardcaml we can take a similar approach.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module type Data = sig\n  include Interface.S\n\n  val key : Signal.t t -> Signal.t\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The hardware design also needs to know the size of the array we are searching and the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "number of bits in the key. Thus we define the following ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Config",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " type.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module type Config = sig\n  module Data : Data\n\n  val log_size : int\n  val key_size : int\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The hardware design will be fully parameterized by ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Config",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " by implementing it within a functor.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Make(Config : Config) = struct\n (* ... hardware implemented here ... *)\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The interface to the design is specified as follows",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Data_with_valid = With_valid.Wrap.Make (Config.Data)\n\nmodule I = struct\n  type 'a t =\n    { clocking : 'a Clocking.t (* Clock and clear. *)\n    ; start : 'a (* Pulsed to start search. *)\n    ; d : 'a Config.Data.t (* Data read at `address`. *)\n    ; find_key : 'a [@bits Config.key_size] (* Key we are looking for. *)\n    }\n  [@@deriving hardcaml]\nend\n\nmodule O = struct\n  type 'a t =\n    { done_ : 'a (* Low while searching. *)\n    ; index : 'a [@bits Config.log_size] (* Index where key was found. *)\n    ; q : 'a Data_with_valid.t (* Data where key was found. *)\n    ; address : 'a [@bits Config.log_size] (* Address into search array. *)\n    }\n  [@@deriving hardcaml]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The interface consists of the following logical parts.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "designing-the-hardware-interface-clocking",
+        "additionalIds" : [ "clocking" ],
+        "level" : 3,
+        "title" : "Clocking",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "Clocking",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is an interface which groups together the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "clock",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "clear",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " signals.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "designing-the-hardware-interface-control",
+        "additionalIds" : [ "control" ],
+        "level" : 3,
+        "title" : "Control",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "start",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is used to begin the search and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "done_",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " indicates when a search is in progress.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "find_key",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is the key we are searching for and must be provided coincident with ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "start",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "and be held during the search operation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "designing-the-hardware-interface-array-access",
+        "additionalIds" : [ "array-access" ],
+        "level" : 3,
+        "title" : "Array access",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "address",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is the current index we are searching the array at and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "d",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is the data at that",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "address.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "designing-the-hardware-interface-output-result",
+        "additionalIds" : [ "output-result" ],
+        "level" : 3,
+        "title" : "Output result",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "index",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is the address at which the element was found.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "q",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is the data we found.  The type of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "q",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Data_with_valid",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " which was defined as:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : "module Data_with_valid = With_valid.Wrap.Make (Config.Data)",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "With_valid",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is common pattern in Hardcaml code. It wraps a signal or, as in this case, an",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Interface",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " with an additional ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "valid",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " bit. If ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "valid",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is high the search succeeded and if",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "it is low the search failed (the element we were looking for did not exist in the input",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "array).",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "implementing-the-search",
+      "additionalIds" : [ ],
+      "title" : "Implementing the Search",
+      "type" : "Section",
+      "content" : [ {
+        "lang" : "ocaml",
+        "snippet" : "module State = struct\n  type t =\n    | Start\n    | Loop\n  [@@deriving sexp_of, compare ~localize, enumerate]\nend\n\nlet create scope (i : _ I.t) =\n  let%hw.Always.State_machine sm =\n    Always.State_machine.create (module State) (Clocking.to_spec i.clocking)\n  in\n  (* search range *)\n  let%hw_var low = Clocking.Var.reg i.clocking ~width:(Config.log_size + 1) in\n  let%hw_var mid = Clocking.Var.reg i.clocking ~width:(Config.log_size + 1) in\n  let%hw_var high = Clocking.Var.reg i.clocking ~width:(Config.log_size + 1) in\n  (* results *)\n  let index = Clocking.Var.reg i.clocking ~width:Config.log_size in\n  let q = Data_with_valid.Of_always.reg (Clocking.to_spec i.clocking) in\n  let%hw key = Config.Data.key i.d in\n  Always.(\n    compile\n      [ sm.switch\n          [ ( Start\n            , [ low <--. 0\n              ; mid <--. Int.pow 2 Config.log_size / 2\n              ; high <--. Int.pow 2 Config.log_size\n              ; when_ i.start [ q.valid <-- gnd; sm.set_next Loop ]\n              ] )\n          ; ( Loop\n            , [ (* success *)\n                if_\n                  (i.find_key ==: key)\n                  [ q.valid <-- vdd\n                  ; index <-- lsbs mid.value\n                  ; Config.Data.Of_always.assign q.value i.d\n                  ; sm.set_next Start\n                  ]\n                (* failure *)\n                @@ elif (mid.value ==: low.value) [ q.valid <-- gnd; sm.set_next Start ]\n                (* search left half *)\n                @@ elif\n                     (i.find_key <: key)\n                     [ high <-- mid.value\n                     ; mid <-- low.value +: srl (mid.value -: low.value) ~by:1\n                     ]\n                @@ (* search right half *)\n                [ low <-- mid.value\n                ; mid <-- mid.value +: srl (high.value -: mid.value) ~by:1\n                ]\n              ] )\n          ]\n      ]);\n  { O.done_ = sm.is Start\n  ; index = index.value\n  ; q = Data_with_valid.Of_always.value q\n  ; address = lsbs mid.value\n  }\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "When start is applied we set the initial range and the state machine transitions to the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Loop",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " state. The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "mid",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " point is output as ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "address",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and the current element is checked:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "if we found the key the search succeeds. ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "q.valid",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " is set high and the index and data",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "are output.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "otherwise, if the mid point equals the low point, the search range is 0 and the search",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "fails. ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "q.valid",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " is set low.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "otherwise, if the search key is less than the current key, search the left half.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "otherwise, (if the search key is greater then the current key) search the right half.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      } ]
+    }, {
+      "id" : "testing",
+      "additionalIds" : [ ],
+      "title" : "Testing",
+      "type" : "Section",
+      "content" : [ {
+        "id" : "testing-adding-the-search-array",
+        "additionalIds" : [ "adding-the-search-array" ],
+        "level" : 2,
+        "title" : "Adding the search array",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To make the testbench simpler to implement we are going to create a top level architecture",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "which include the search array memory.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The interface to this design has a write port for loading the search data along with the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "start",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "find_key",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " values. The output is the same as before except we don't output",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "address",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and wire this directly into the memory.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The implementation just instantiates the search array memory and binary search module.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Make_with_memory (Config : Config) = struct\n  module Binary_search = Make (Config)\n\n  module I = struct\n    type 'a t =\n      { clocking : 'a Clocking.t\n      ; write_enable : 'a\n      ; write_data : 'a Config.Data.t\n      ; write_address : 'a [@bits Config.log_size]\n      ; start : 'a\n      ; find_key : 'a [@bits Config.key_size]\n      }\n    [@@deriving hardcaml]\n  end\n\n  module O = struct\n    type 'a t =\n      { done_ : 'a\n      ; index : 'a [@bits Config.log_size]\n      ; q : 'a Binary_search.Data_with_valid.t\n      }\n    [@@deriving hardcaml]\n  end\n\n  let create scope (i : _ I.t) =\n    let read_address = wire Config.log_size in\n    let q =\n      multiport_memory\n        (Int.pow 2 Config.log_size)\n        ~write_ports:\n          [| { write_clock = i.clocking.clock\n             ; write_address = i.write_address\n             ; write_enable = i.write_enable\n             ; write_data = Config.Data.Of_signal.pack i.write_data\n             }\n          |]\n        ~read_addresses:[| read_address |]\n    in\n    let binary_search =\n      Binary_search.create\n        scope\n        { Binary_search.I.clocking = i.clocking\n        ; start = i.start\n        ; d = Config.Data.Of_signal.unpack q.(0)\n        ; find_key = i.find_key\n        }\n    in\n    read_address <-- binary_search.address;\n    { O.done_ = binary_search.done_; index = binary_search.index; q = binary_search.q }\n  ;;\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "testing-writing-the-testbench",
+        "additionalIds" : [ "writing-the-testbench" ],
+        "level" : 2,
+        "title" : "Writing the testbench",
+        "type" : "SubHeading"
+      }, {
+        "id" : "testing-writing-the-testbench-configuring-the-testbench",
+        "additionalIds" : [ "configuring-the-testbench" ],
+        "level" : 3,
+        "title" : "Configuring the testbench",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Define the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Data",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " interface we will search over and the size of the array to search.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Data = struct\n  let key_size = 6\n\n  type 'a t =\n    { key : 'a [@bits key_size]\n    ; data : 'a [@bits 32]\n    }\n  [@@deriving hardcaml]\n\n  let key t = t.key\nend\n\nmodule Config = struct\n  module Data = Data\n\n  let key_size = Data.key_size\n  let log_size = 4\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The array size will be 16 elements. The key is 6 bits so ranges from 0 to 63.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "testing-writing-the-testbench-test-functions",
+        "additionalIds" : [ "test-functions" ],
+        "level" : 3,
+        "title" : "Test functions",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The testbench is implemented by the following functions.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "clear_core - clear (reset) the registers.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "load_inputs - load the array to search.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "run_core - start the search, wait for it to complete then return the results.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let clear_core (sim : Sim.t) =\n  let inputs = Cyclesim.inputs sim in\n  inputs.clocking.clear <--. 1;\n  Cyclesim.cycle sim;\n  inputs.clocking.clear <--. 0\n;;\n\nlet load_inputs (sim : Sim.t) (input_data : int Data.t array) =\n  let inputs = Cyclesim.inputs sim in\n  inputs.write_enable <--. 1;\n  for i = 0 to Int.pow 2 Config.log_size - 1 do\n    inputs.write_address <--. i;\n    inputs.write_data.key <--. input_data.(i).key;\n    inputs.write_data.data <--. input_data.(i).data;\n    Cyclesim.cycle sim\n  done\n;;\n\nlet run_core (sim : Sim.t) find_key =\n  let inputs = Cyclesim.inputs sim in\n  let outputs = Cyclesim.outputs sim in\n  (* Start the search. *)\n  inputs.start <--. 1;\n  Cyclesim.cycle sim;\n  inputs.start <--. 0;\n  inputs.find_key <--. find_key;\n  (* Wait for it to finish.  Don't let it take more than 20 cycles. *)\n  let timeout = ref 0 in\n  while (not (Bits.to_bool !(outputs.done_))) && !timeout < 20 do\n    Cyclesim.cycle sim;\n    Int.incr timeout\n  done;\n  Cyclesim.cycle sim;\n  (* Collect and return results. *)\n  let found = Bits.to_bool !(outputs.q.valid) in\n  if found\n  then (\n    let index = Bits.to_unsigned_int !(outputs.index) in\n    let data = Bits.to_unsigned_int !(outputs.q.value.data) in\n    let key = Bits.to_unsigned_int !(outputs.q.value.key) in\n    (* Sanity check - make sure the key we found was actually the key we were searching\n       for. *)\n    if key <> find_key\n    then\n      raise_s\n        [%message\n          \"Found wrong key\" (find_key : int) (key : int) (index : int) (data : int)];\n    Some (index, data))\n  else None\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "testing-writing-the-testbench-testbench",
+        "additionalIds" : [ "testbench" ],
+        "level" : 3,
+        "title" : "Testbench",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let validate ~(input_data : int Data.t array) ~find_key ~result =\n  let key_is_in_input_data =\n    match Array.find input_data ~f:(fun { key; _ } -> key = find_key) with\n    | None -> false\n    | _ -> true\n  in\n  let raise_search_failed () =\n    raise_s\n      [%message\n        \"Search failed\"\n          (find_key : int)\n          (key_is_in_input_data : bool)\n          (result : (int * int) option)\n          (input_data : int Config.Data.t array)]\n  in\n  match result, key_is_in_input_data with\n  | None, true ->\n    (* The hardware didn't find the element but it was there. *)\n    raise_search_failed ()\n  | Some _, false ->\n    (* The hardware found an element but it wasn't there. *)\n    raise_search_failed ()\n  | None, false ->\n    (* Nothing to find. *)\n    ()\n  | Some (index, data), true ->\n    (* We found the element - check the key and data are as expected. *)\n    if input_data.(index).key <> find_key || input_data.(index).data <> data\n    then raise_search_failed ()\n;;\n\nlet test ~waves ~input_data ~find_key =\n  let open Hardcaml_waveterm in\n  (* Create the simulator. *)\n  let scope = Scope.create ~auto_label_hierarchical_ports:true ~flatten_design:true () in\n  let sim = Sim.create ~config:Cyclesim.Config.trace_all (Binary_search.create scope) in\n  let waves, sim =\n    (* Optionally trace a waveform. *)\n    if waves\n    then (\n      let waves, sim = Waveform.create sim in\n      Some waves, sim)\n    else None, sim\n  in\n  (* Run the testbench. *)\n  clear_core sim;\n  load_inputs sim input_data;\n  let result = run_core sim find_key in\n  (* Optionally show the waveform. *)\n  Option.iter\n    waves\n    ~f:(Waveform.expect_exact ~wave_width:3 ~start_cycle:16 ~display_rules);\n  (* Check the results are valid. *)\n  validate ~input_data ~find_key ~result\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "testing-writing-the-testbench-randomized-testing",
+        "additionalIds" : [ "randomized-testing" ],
+        "level" : 3,
+        "title" : "Randomized testing",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We can now perform some randomized testing. We create an array of random ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Data",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " elements",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "and sort it. We then search for some random keys in the array. If it doesn't raise all is",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "well.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let%expect_test \"random tests\" =\n  for _ = 1 to 10 do\n    let input_data =\n      Array.init (Int.pow 2 Config.log_size) ~f:(fun _ ->\n        { Config.Data.key = random_key (); data = random_data () })\n    in\n    Array.sort input_data ~compare:(fun { key; _ } { key = key1; _ } ->\n      Int.compare key key1);\n    for _ = 1 to 20 do\n      let find_key = random_key () in\n      test ~waves:false ~input_data ~find_key\n    done\n  done;\n  [%expect {| |}]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "testing-writing-the-testbench-waveform",
+        "additionalIds" : [ "waveform" ],
+        "level" : 3,
+        "title" : "Waveform",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let%expect_test \"debug waveform\" =\n  let input_data =\n    Array.init (Int.pow 2 Config.log_size) ~f:(fun i -> { Config.Data.key = i; data = i })\n  in\n  let find_key = 3 in\n  test ~waves:true ~input_data ~find_key;\n  [%expect_exact\n    {|\n┌Signals───────────┐┌Waves───────────────────────────────────────────────────────────────┐\n│clocking$clock    ││┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───│\n│                  ││    └───┘   └───┘   └───┘   └───┘   └───┘   └───┘   └───┘   └───┘   │\n│clocking$clear    ││                                                                    │\n│                  ││────────────────────────────────────────────────────────            │\n│write_enable      ││────────────────────────────────────────────────────────            │\n│                  ││                                                                    │\n│                  ││────────────────────────────────────────────────────────            │\n│write_data$key    ││ 15                                                                 │\n│                  ││────────────────────────────────────────────────────────            │\n│                  ││────────────────────────────────────────────────────────            │\n│write_data$data   ││ 15                                                                 │\n│                  ││────────────────────────────────────────────────────────            │\n│                  ││────────────────────────────────────────────────────────            │\n│write_address     ││ 15                                                                 │\n│                  ││────────────────────────────────────────────────────────            │\n│start             ││        ┌───────┐                                                   │\n│                  ││────────┘       └───────────────────────────────────────            │\n│                  ││────────────────┬───────────────────────────────────────            │\n│find_key          ││ 0              │3                                                  │\n│                  ││────────────────┴───────────────────────────────────────            │\n│done_             ││────────────────┐                               ┌───────            │\n│                  ││                └───────────────────────────────┘                   │\n│                  ││────────────────────────────────────────────────┬───────            │\n│index             ││ 0                                              │3                  │\n│                  ││────────────────────────────────────────────────┴───────            │\n│q$valid           ││                                                ┌───────            │\n│                  ││────────────────────────────────────────────────┘                   │\n│                  ││────────────────────────────────────────────────┬───────            │\n│q$value$key       ││ 0                                              │3                  │\n│                  ││────────────────────────────────────────────────┴───────            │\n│                  ││────────────────────────────────────────────────┬───────            │\n│q$value$data      ││ 0                                              │3                  │\n│                  ││────────────────────────────────────────────────┴───────            │\n│                  ││────────────────────────────────────────┬───────────────            │\n│low               ││ 0                                      │2                          │\n│                  ││────────────────────────────────────────┴───────────────            │\n│                  ││────────────────────────┬───────┬───────┬───────────────            │\n│mid               ││ 8                      │4      │2      │3                          │\n│                  ││────────────────────────┴───────┴───────┴───────────────            │\n│                  ││────────────────────────┬───────┬───────────────────────            │\n│high              ││ 16                     │8      │4                                  │\n│                  ││────────────────────────┴───────┴───────────────────────            │\n│                  ││────────────────┬───────────────────────────────┬───────            │\n│sm                ││ Start          │Loop                           │Start              │\n│                  ││────────────────┴───────────────────────────────┴───────            │\n└──────────────────┘└────────────────────────────────────────────────────────────────────┘\nc55f6d1c162be347d7d0654ae22a7310\n|}]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443062,
+    "tocItem" : {
+      "chapterTitle" : "Examples",
+      "pageTitle" : "6.5 Binary Search",
+      "pageMeta" : {
+        "parent" : [ "examples.mdx" ],
+        "title" : [ "6.5 Binary Search" ],
+        "uuid" : [ "fd00fcfb-2558-3b73-f13a-4bc939eca093" ]
+      },
+      "dirName" : "examples",
+      "fileName" : "binary_search",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Binary Search",
+        "id" : "binary-search",
+        "customAnchorId" : "binary-search"
+      }, {
+        "title" : "Designing the Hardware Interface",
+        "id" : "designing-the-hardware-interface",
+        "customAnchorId" : "designing-the-hardware-interface"
+      }, {
+        "title" : "Implementing the Search",
+        "id" : "implementing-the-search",
+        "customAnchorId" : "implementing-the-search"
+      }, {
+        "title" : "Testing",
+        "id" : "testing",
+        "customAnchorId" : "testing"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

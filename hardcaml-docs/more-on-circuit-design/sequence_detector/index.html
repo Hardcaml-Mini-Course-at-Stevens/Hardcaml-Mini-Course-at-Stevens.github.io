@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 4.3.1 Sequence Detector</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>In this example we will explore the implementation of a sequence detector The hardware will take in one bit per cycle and raise a signal when it sees a specific sequence of bits Below we have implemented an example in Verilog VHDL and Hardcaml for comparison The sequence detected is Verilog VHDL Hardcaml In each state we transition to the next matching state if the input data is expected or return to if not When we are in the final state we check the input is correct and set the output detect 101 module sequence_detector input clock clear d output reg detect localparam S1 0 S10 1 S101 2 reg 1 0 state always @ posedge clock if clear begin state &lt; S1 detect &lt; 0 end else begin case state S1 if d state &lt; S10 else state &lt; S1 S10 if d state &lt; S1 else state &lt; S101 S101 state &lt; S1 endcase detect &lt; state S101 &amp; d end endmodule library ieee use ieee std_logic_1164 all entity sequence_detector_vhdl is port clock clear d in std_logic detect out std_logic end entity architecture rtl of sequence_detector_vhdl is type state_t is S1 S10 S101 signal state state_t begin process clock begin if rising_edge clock then if clear 1 then state &lt; S1 detect &lt; 0 else case state is when S1 &gt; if d 1 then state &lt; S10 else state &lt; S1 end if when S10 &gt; if d 1 then state &lt; S1 else state &lt; S101 end if when S101 &gt; state &lt; S1 end case if state S101 and d 1 then detect &lt; 1 else detect &lt; 0 end if end if end if end process end architecture module State struct type t | S1 | S10 | S101 @@deriving sexp_of compare localize enumerate end let create clock clear d let spec Reg_spec create clock clear in let sm Always State_machine create module State spec in Always compile sm switch S1 if_ d sm set_next S10 sm set_next S1 S10 if_ d sm set_next S1 sm set_next S101 S101 sm set_next S1 reg spec sm is S101 &amp; d S1 S101 detect</p>
+</article>
+
+<article>
+<header><h1>Testing</h1></header>
+<p>As we see the first two test sequences are correctly detected However the third one is not Can you see why # let test bits let sim create_sequence_detector_sim in let waves sim Waveform create sim in let d Cyclesim in_port sim d in List iter Bits bits_lsb bits f fun bit &gt; d bit Cyclesim cycle sim Cyclesim cycle sim Waveform print waves wave_width 1 display_width 40 val test Bits t &gt; unit &lt;fun&gt; # test Bits of_string 101 SignalsWaves clock                  clear      d        detect        unit # test Bits of_string 1010 SignalsWaves clock                  clear      d         detect        unit # test Bits of_string 1011 SignalsWaves clock                  clear      d        detect       unit</p>
+</article>
+
+<article>
+<header><h1>Parameterizing over the Sequence</h1></header>
+<p>In the following code we make the circuit parameterized over the sequence we wish to detect The code is pretty similar to before the interesting bit is that the number states required is determined by the sequence length we need to match against The module specifies a number of states equal to the length of This is done in the definition of the value The implementation of each state is built dynamically They are all of the form The function returns the states to transition to if the input is valid or invalid Note we swap them depending on if we expect to match a or a let next_states sequence cur_state let sequence_length Bits width sequence in cur_state 1 % sequence_length 0 let create sequence clock clear d let sequence_length Bits width sequence in let module State struct type t int @@deriving compare localize sexp_of * Valid states are integers in the range 0 sequence_length 1 * let all List init sequence_length f Fn id end in let spec Reg_spec create clock clear in let sm Always State_machine create module State spec in Always compile sm switch List init sequence_length f fun cur_state &gt; cur_state let t f next_states sequence cur_state in let t f * Swap the states if the match bit is 0 * if Bits to_bool sequence Bits cur_state then t f else f t in if_ d sm set_next t sm set_next f * Decode the detect result we are in the final state and the last bit matches * reg spec sm is sequence_length 1 &amp; if Bits to_bool sequence Bits sequence_length 1 then d else d State sequence all if_ d sm set_next t sm set_next f next_states 0 1</p>
+</article>
+
+<article>
+<header><h1>Fixing the Matching Problem</h1></header>
+<p>We noted a problem that we don t match all sequences properly The problem is caused by the state machine always returning to the initial state if the current input bit doesn t match It is possible however that we should return to some earlier state which partially matches the input sequence In the previous example we input the sequence and it didn t match Consider what happens We get the first and transition to We get a and transition to We get a and stay in We get a and transition to We didn t match What we should do is We get the first and transition to We get a and stay in We get a and transition to We get a and set To this fix we need to find the state which matches the longest prefix of our sequence when the input bit does not match We can do this by modifying our function There is actually a further problem when we get a sequence match that may actually form a prefix for the next match i e consider matching against there are two matches adjacent to each other So there are two cases in which we must find the longest partial match and move to the state that represents it If the current input bit doesn t match the sequence or if we are in the last state and the bit does match It is important to note that we are not actually generating any hardware here we are performing calculations to define what hardware we should generate 1 &gt;1 &gt;0 &gt;1 1 S10 1 S1 0 S1 1 S10 1 S10 1 S10 0 S101 1 detect next_states 111 1111 let find_prev_match match_bit sequence cur_state let open Bits in if cur_state 0 then 0 else let sequence sequence cur_state 1 0 in let rec find cur_state sequence match_ if cur_state 0 then 0 else if Bits equal sequence match_ then cur_state else if cur_state 1 then 0 else find cur_state 1 lsbs sequence msbs match_ in find cur_state sequence msbs match_bit @ sequence let next_states sequence cur_state let open Bits in let sequence_length width sequence in let on_match if cur_state sequence_length 1 then find_prev_match sequence cur_state sequence cur_state else cur_state 1 % sequence_length in let no_match find_prev_match sequence cur_state sequence cur_state in on_match no_match</p>
+</article>
+
+<article>
+<header><h1>Building a Test Harness</h1></header>
+<p>We now want to show that the fixes we made have actually worked To do this we will create a self checking testbench The idea is we will run a sequence of bits through the detector module and record every place it finds a match We will compare this against a software reference model and compare the two results We can then run a bunch of random tests and make sure everything is correct Lets start off by creating the software reference model We can now write a testbench that runs the sequence detector and collects all the matches it sees It compares against the software model and raises if they do not agree Now we can run some random tests across different sequences let software_reference sequence bits let open Bits in List init width bits width sequence 1 f fun pos &gt; if to_bool bits width sequence pos 1 pos sequence then Some pos else None |&gt; List filter_opt * We find the first bit of the match but the hardware will find the last bit so offset it by the length of the sequence * |&gt; List map f fun d &gt; d width sequence 1 let test sequence data_in let sim create_sequence_detector_sim sequence in let d Cyclesim in_port sim d in let detect Cyclesim out_port sim detect in let open Bits in let cycles width data_in in let results ref in for i 0 to cycles 1 do d data_in i Cyclesim cycle sim if Bits to_bool detect then results i results done let results List rev results in let expected software_reference sequence data_in in if not List equal Int equal results expected then raise_s %message sequence Bits t data_in Bits t results int list expected int list let%expect_test check random sequences for _ 0 to 10 do let sequence Bits random width 1 Random int 5 in for _ 0 to 100 do let data_in Bits random width Bits width sequence Random int 100 in test sequence data_in done done</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "In this example we will explore the implementation of a sequence detector. The hardware",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "will take in one bit per cycle and raise a ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "detect",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " signal when it sees a specific",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "sequence of bits.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Below we have implemented an example in Verilog, VHDL and Hardcaml for comparison. The",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "sequence detected is ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "101",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ".",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "verilog",
+      "additionalIds" : [ ],
+      "level" : 3,
+      "title" : "Verilog",
+      "type" : "SubHeading"
+    }, {
+      "lang" : "verilog",
+      "snippet" : "module sequence_detector (\n  input clock, clear, d,\n  output reg detect\n);\n\n  localparam \n    S1 = 0, \n    S10 = 1, \n    S101 = 2;\n\n  reg [1:0] state;\n\n  always @(posedge clock) \n    if (clear) begin \n      state <= S1;\n      detect <= 0;\n    end else begin\n      case (state)\n        S1: \n          if (d) state <= S10;\n          else state <= S1;\n        S10: \n          if (d) state <= S1;\n          else state <= S101;\n        S101: \n          state <= S1;\n      endcase\n\n      detect <= (state == S101) & d;\n    end\n\nendmodule",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "id" : "vhdl",
+      "additionalIds" : [ ],
+      "level" : 3,
+      "title" : "VHDL",
+      "type" : "SubHeading"
+    }, {
+      "lang" : "vhdl",
+      "snippet" : "library ieee;\nuse ieee.std_logic_1164.all;\n\nentity sequence_detector_vhdl is\n  port (\n    clock, clear, d : in std_logic;\n    detect : out std_logic\n  );\nend entity;\n\narchitecture rtl of sequence_detector_vhdl is\n\n  type state_t is (S1, S10, S101);\n  signal state : state_t;\n\nbegin\n\n  process (clock) begin\n    if rising_edge(clock) then \n      if clear = '1' then \n        state <= S1;\n        detect <= '0';\n      else\n        case (state) is\n          when S1 => \n            if d = '1' then state <= S10;\n            else state <= S1;\n            end if;\n          when S10 => \n            if d = '1' then state <= S1;\n            else state <= S101;\n            end if;\n          when S101 => \n            state <= S1;\n        end case;\n\n        if state = S101 and d = '1' then\n          detect <= '1';\n        else\n          detect <= '0';\n        end if;\n      end if;\n    end if;\n  end process;\n\nend architecture;",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "id" : "hardcaml",
+      "additionalIds" : [ ],
+      "level" : 3,
+      "title" : "Hardcaml",
+      "type" : "SubHeading"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "module State = struct\n  type t =\n    | S1\n    | S10\n    | S101\n  [@@deriving sexp_of, compare ~localize, enumerate]\nend\n\nlet create ~clock ~clear ~d =\n  let spec = Reg_spec.create ~clock ~clear () in\n  let sm = Always.State_machine.create (module State) spec in\n  Always.(\n    compile\n      [ sm.switch\n          [ S1, [ if_ d [ sm.set_next S10 ] [ sm.set_next S1 ] ]\n          ; S10, [ if_ d [ sm.set_next S1 ] [ sm.set_next S101 ] ]\n          ; S101, [ sm.set_next S1 ]\n          ]\n      ]);\n  reg spec (sm.is S101 &: d)\n;;",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "In each state we transition to the next matching state if the input data is expected or",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "return to ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "S1",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " if not. When we are in the final state ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "S101",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " we check the input is correct",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "and set the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "detect",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " output.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "testing",
+      "additionalIds" : [ ],
+      "title" : "Testing",
+      "type" : "Section",
+      "content" : [ {
+        "lang" : "ocaml",
+        "snippet" : "# let test bits = \n    let sim = create_sequence_detector_sim () in\n    let waves, sim = Waveform.create sim in\n    let d = Cyclesim.in_port sim \"d\" in\n    List.iter (Bits.bits_lsb bits) ~f:(fun bit ->\n      d := bit;\n      Cyclesim.cycle sim); \n    Cyclesim.cycle sim;\n    Waveform.print waves ~wave_width:1 ~display_width:40\nval test : Bits.t -> unit = <fun>\n# test (Bits.of_string \"101\")\n┌Signals─┐┌Waves───────────────────────┐\n│clock   ││┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ │\n│        ││  └─┘ └─┘ └─┘ └─┘ └─┘ └─┘ └─│\n│clear   ││                            │\n│        ││────────────────            │\n│d       ││────┐   ┌───────            │\n│        ││    └───┘                   │\n│detect  ││            ┌───            │\n│        ││────────────┘               │\n└────────┘└────────────────────────────┘\n- : unit = ()\n# test (Bits.of_string \"1010\")\n┌Signals─┐┌Waves───────────────────────┐\n│clock   ││┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ │\n│        ││  └─┘ └─┘ └─┘ └─┘ └─┘ └─┘ └─│\n│clear   ││                            │\n│        ││────────────────────        │\n│d       ││    ┌───┐   ┌───────        │\n│        ││────┘   └───┘               │\n│detect  ││                ┌───        │\n│        ││────────────────┘           │\n└────────┘└────────────────────────────┘\n- : unit = ()\n# test (Bits.of_string \"1011\")\n┌Signals─┐┌Waves───────────────────────┐\n│clock   ││┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ │\n│        ││  └─┘ └─┘ └─┘ └─┘ └─┘ └─┘ └─│\n│clear   ││                            │\n│        ││────────────────────        │\n│d       ││────────┐   ┌───────        │\n│        ││        └───┘               │\n│detect  ││                            │\n│        ││────────────────────        │\n└────────┘└────────────────────────────┘\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "As we see the first two test sequences are correctly detected. However, the third one is",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "not.  Can you see why?",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "parameterizing-over-the-sequence",
+      "additionalIds" : [ ],
+      "title" : "Parameterizing over the Sequence",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In the following code we make the circuit parameterized over the sequence we wish to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "detect. The code is pretty similar to before - the interesting bit is that the number",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "states required is determined by the sequence length we need to match against.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let next_states sequence cur_state =\n  let sequence_length = Bits.width sequence in\n  (cur_state + 1) % sequence_length, 0\n;;\n\nlet create ~sequence ~clock ~clear ~d =\n  let sequence_length = Bits.width sequence in\n  let module State = struct\n    type t = int [@@deriving compare ~localize, sexp_of]\n\n    (* Valid states are integers in the range [0..sequence_length-1]. *)\n    let all = List.init sequence_length ~f:Fn.id\n  end\n  in\n  let spec = Reg_spec.create ~clock ~clear () in\n  let sm = Always.State_machine.create (module State) spec in\n  Always.(\n    compile\n      [ sm.switch\n          (List.init sequence_length ~f:(fun cur_state ->\n             ( cur_state\n             , let t, f = next_states sequence cur_state in\n               let t, f =\n                 (* Swap the states if the match bit is [0]. *)\n                 if Bits.to_bool sequence.Bits.:(cur_state) then t, f else f, t\n               in\n               [ if_ d [ sm.set_next t ] [ sm.set_next f ] ] )))\n      ]);\n  (* Decode the [detect] result - we are in the final state and the last bit matches. *)\n  reg\n    spec\n    (sm.is (sequence_length - 1)\n     &: if Bits.to_bool sequence.Bits.:(sequence_length - 1) then d else ~:d)\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "State",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " module specifies a number of states equal to the length of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "sequence",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". This is",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "done in the definition of the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "all",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " value.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The implementation of each state is built dynamically. They are all of the form",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : "[ if_ d [ sm.set_next t] [sm.set_next f] ]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The function ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "next_states",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " returns the states to transition to if the input is valid or",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "invalid. Note we swap them depending on if we expect to match a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "0",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " or a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "1",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "fixing-the-matching-problem",
+      "additionalIds" : [ ],
+      "title" : "Fixing the Matching Problem",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We noted a problem that we don't match all sequences properly. The problem is caused by",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the state machine always returning to the initial state if the current input bit doesn't",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "match. It is possible, however, that we should return to some earlier state which",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "partially matches the input sequence.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In the previous example we input the sequence ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "1->1->0->1",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and it didn't match.  Consider what happens:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 1,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "We get the first ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "1",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " and transition to ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "S10",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "We get a ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "1",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " and transition to ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "S1",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "We get a ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "0",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " and stay in ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "S1",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "We get a ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "1",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " and transition to ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "S10",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We didn't match.  What we should do is",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 1,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "We get the first ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "1",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " and transition to ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "S10",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "We get a ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "1",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " and stay in ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "S10",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "We get a ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "0",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " and transition to ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "S101",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "We get a ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "1",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " and set ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "detect",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To this fix we need to find the state which matches the longest prefix of our sequence",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "when the input bit does not match. We can do this by modifying our ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "next_states",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "There is actually a further problem - when we get a sequence match that may actually form",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "a prefix for the next match i.e. consider matching ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "111",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " against ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "1111",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " there are two",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "matches adjacent to each other.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "So, there are two cases in which we must find the longest partial match and move to the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "state that represents it.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 1,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "If the current input bit doesn't match the sequence",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "or if we are in the last state and the bit does match",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let find_prev_match match_bit sequence cur_state =\n  let open Bits in\n  if cur_state = 0\n  then 0\n  else (\n    let sequence = sequence.:[cur_state - 1, 0] in\n    let rec find cur_state sequence match_ =\n      if cur_state = 0\n      then 0\n      else if Bits.equal sequence match_\n      then cur_state\n      else if cur_state = 1\n      then 0\n      else find (cur_state - 1) (lsbs sequence) (msbs match_)\n    in\n    find cur_state sequence (msbs (match_bit @: sequence)))\n;;\n\nlet next_states sequence cur_state =\n  let open Bits in\n  let sequence_length = width sequence in\n  let on_match =\n    if cur_state = sequence_length - 1\n    then find_prev_match sequence.:(cur_state) sequence cur_state\n    else (cur_state + 1) % sequence_length\n  in\n  let no_match = find_prev_match ~:sequence.:(cur_state) sequence cur_state in\n  on_match, no_match\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "It is important to note that we are not actually generating any hardware here - we are",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "performing calculations to define what hardware we should generate.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "building-a-test-harness",
+      "additionalIds" : [ ],
+      "title" : "Building a Test Harness",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We now want to show that the fixes we made have actually worked. To do this we will create",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "a self checking testbench.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The idea is we will run a sequence of bits through the detector module and record every",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "place it finds a match. We will compare this against a software reference model and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "compare the two results. We can then run a bunch of random tests and make sure everything",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "is correct.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Lets start off by creating the software reference model.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let software_reference sequence bits =\n  let open Bits in\n  List.init\n    (width bits - width sequence + 1)\n    ~f:(fun pos ->\n      if to_bool (bits.:[width sequence + pos - 1, pos] ==: sequence)\n      then Some pos\n      else None)\n  |> List.filter_opt\n  (* We find the first bit of the match, but the hardware will find the last bit so offset\n     it by the length of the sequence. *)\n  |> List.map ~f:(fun d -> d + width sequence - 1)\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We can now write a testbench that runs the sequence detector and collects all the matches",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "it sees.  It compares against the software model and raises if they do not agree.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let test ~sequence ~data_in =\n  let sim = create_sequence_detector_sim ~sequence in\n  let d = Cyclesim.in_port sim \"d\" in\n  let detect = Cyclesim.out_port sim \"detect\" in\n  let open Bits in\n  let cycles = width data_in in\n  let results = ref [] in\n  for i = 0 to cycles - 1 do\n    d := data_in.:(i);\n    Cyclesim.cycle sim;\n    if Bits.to_bool !detect then results := i :: !results\n  done;\n  let results = List.rev !results in\n  let expected = software_reference sequence data_in in\n  if not (List.equal Int.equal results expected)\n  then\n    raise_s\n      [%message\n        (sequence : Bits.t) (data_in : Bits.t) (results : int list) (expected : int list)]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Now we can run some random tests across different sequences.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let%expect_test \"check random sequences\" =\n  for _ = 0 to 10 do\n    let sequence = Bits.random ~width:(1 + Random.int 5) in\n    for _ = 0 to 100 do\n      let data_in = Bits.random ~width:(Bits.width sequence + Random.int 100) in\n      test ~sequence ~data_in\n    done\n  done\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443387,
+    "tocItem" : {
+      "chapterTitle" : "More On Circuit Design",
+      "pageTitle" : "4.3.1 Sequence Detector",
+      "pageMeta" : {
+        "parent" : [ "state_machine_always_api.mdx" ],
+        "title" : [ "4.3.1 Sequence Detector" ],
+        "uuid" : [ "7916e3b7-e702-3832-4328-5f135816945f" ]
+      },
+      "dirName" : "more-on-circuit-design",
+      "fileName" : "sequence_detector",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Testing",
+        "id" : "testing",
+        "customAnchorId" : "testing"
+      }, {
+        "title" : "Parameterizing over the Sequence",
+        "id" : "parameterizing-over-the-sequence",
+        "customAnchorId" : "parameterizing-over-the-sequence"
+      }, {
+        "title" : "Fixing the Matching Problem",
+        "id" : "fixing-the-matching-problem",
+        "customAnchorId" : "fixing-the-matching-problem"
+      }, {
+        "title" : "Building a Test Harness",
+        "id" : "building-a-test-harness",
+        "customAnchorId" : "building-a-test-harness"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

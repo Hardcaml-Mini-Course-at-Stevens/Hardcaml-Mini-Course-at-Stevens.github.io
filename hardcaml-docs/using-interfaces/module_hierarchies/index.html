@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 5.7 Module Hierarchies</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>Prerequisite Hardcaml interfaces In Hardcaml module hierarchy allows us to partition a design into a tree of sub circuits each generated as its own Verilog or VHDL module when producing RTL output This builds upon instantiation circuit databases s and the design pattern for defining circuits using and interfaces along with a function Module hierarchies provide several important benefits Controls the naming of signals within the design hierarchy Timing reports logic utilization reports from backend vendor tools will be much easier to comprehend Allows better organization of waveforms which can group signals according to the module hierarchy Reduces the size of the generated RTL file where there is substantial logic duplication Provides some options for controlling the backend process of building the final hardware design with vendor tools Scope I O create</p>
+</article>
+
+<article>
+<header><h1>A Design Pattern for Circuits</h1></header>
+<p>We extend our previous design pattern for circuits to now include a The and interfaces and the function we already know about is new and is what we use to generate structured multi level Hardcaml designs It s mechanically derived as follows The function is built using the functor It provides a function called that takes and and elaborates it according to whether setting of the root scope Flattened Mode The function calls the function of your submodule directly which inlines all the logic into the parent circuit This results in a single flat module with no hierarchy Hierarchical Mode The function generates an instantiation for our subcircuit then elaborates it separately and stores its implementation in a This maintains proper module hierarchy in the generated RTL Scope t open Hardcaml module type Module_design_pattern sig module I Interface S module O Interface S val create Scope t &gt; Signal t I t &gt; Signal t O t val hierarchical Scope t &gt; Signal t I t &gt; Signal t O t end I O create module I struct type a t clock a clear a foo a @bits 8 @@deriving hardcaml end module O struct type a t foo_d a @bits 8 @@deriving hardcaml end # let create _scope Scope t input Signal t I t let spec_with_clear Signal Reg_spec create clock input clock clear input clear in let foo_d Signal reg spec_with_clear enable Signal vdd input foo in O foo_d val create Scope t &gt; Signal t I t &gt; Signal t O t &lt;fun&gt; hierarchical # let hierarchical scope Scope t input Signal t I t let module H Hierarchy In_scope I O in H hierarchical scope name module_name instance module_instance_2 create input val hierarchical Scope t &gt; Signal t I t &gt; Signal t O t &lt;fun&gt; hierarchical Hierarchy In_scope H hierarchical scope create flatten_design flatten_design true create flatten_design false Circuit_database t</p>
+</article>
+
+<article>
+<header><h1>Summary</h1></header>
+<p>If we follow the design pattern here we must pass a scope to our functions We then use the functor to derive the function When we want to instantiate a subcircuit we call instead of To elaborate a full design we call the top level function with a scope that will set as appropriate As the design is elaborated by calling the functions of subcircuits we will either build a single large fully inlined design or just the top level circuit along with a database containing all the instantiated subcircuits Simulation Here s an example of how we would simulate a hierarchical design RTL generation For RTL generation we need to do a couple of things Create the scope with set to false Construct a Get the circuit database from the scope Pass the circuit database to the function create Hierarchy In_scope hierarchical hierarchical create create flatten_design hierarchical # let create_sim let module Sim Cyclesim With_interface I O in let scope Scope create flatten_design true in Sim create create scope val create_sim unit &gt; Bits t ref I t Bits t ref O t Cyclesim t &lt;fun&gt; flatten_design Circuit Rtl print # let write_verilog let module Circuit Circuit With_interface I O in let scope Scope create flatten_design false in let circuit Circuit create_exn name top create scope in let database Scope circuit_database scope in Rtl print database Verilog circuit val write_verilog unit &gt; unit &lt;fun&gt;</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "type" : "Emphasis",
+        "content" : [ {
+          "text" : "Prerequisite: ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "/hardcaml-docs/using-interfaces/hardcaml_interfaces",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "Hardcaml interfaces",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "In Hardcaml, module",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Hierarchy/index.html",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "text" : "hierarchy",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "text" : " allows",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "us to partition a design into a tree of sub-circuits, each generated as its own Verilog or",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "VHDL module when producing RTL output.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "This builds upon ",
+        "type" : "SimpleText"
+      }, {
+        "url" : "/hardcaml-docs/more-on-circuit-design/instantiation",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "text" : "instantiation",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "text" : ", ",
+        "type" : "SimpleText"
+      }, {
+        "url" : "/hardcaml-docs/designing-circuits/rtl_generation",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "text" : "circuit",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "databases",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "text" : ", ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Scope",
+        "type" : "InlinedCode"
+      }, {
+        "text" : "s, and the design pattern for defining circuits",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "using ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "I",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " and ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "O",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " interfaces along with a ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "create",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " function.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Module hierarchies provide several important benefits:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "bulletMarker" : "-",
+      "tight" : true,
+      "type" : "BulletList",
+      "content" : [ {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Controls the naming of signals within the design hierarchy.",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "bulletMarker" : "-",
+          "tight" : true,
+          "type" : "BulletList",
+          "content" : [ {
+            "type" : "ListItem",
+            "content" : [ {
+              "type" : "Paragraph",
+              "content" : [ {
+                "text" : "Timing reports/logic utilization reports from backend vendor tools will be much easier",
+                "type" : "SimpleText"
+              }, {
+                "type" : "SoftLineBreak"
+              }, {
+                "text" : "to comprehend.",
+                "type" : "SimpleText"
+              } ]
+            } ]
+          }, {
+            "type" : "ListItem",
+            "content" : [ {
+              "type" : "Paragraph",
+              "content" : [ {
+                "text" : "Allows better organization of waveforms which can group signals according to the",
+                "type" : "SimpleText"
+              }, {
+                "type" : "SoftLineBreak"
+              }, {
+                "text" : "module hierarchy.",
+                "type" : "SimpleText"
+              } ]
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Reduces the size of the generated RTL file, where there is substantial logic",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "duplication.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Provides some options for controlling the backend process of building the final hardware",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "design with vendor tools.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      } ]
+    }, {
+      "id" : "a-design-pattern-for-circuits",
+      "additionalIds" : [ ],
+      "title" : "A Design Pattern for Circuits",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We extend our previous design pattern for circuits to now include a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Scope.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "open Hardcaml\n\nmodule type Module_design_pattern = sig\n  module I : Interface.S\n  module O : Interface.S\n\n  val create : Scope.t -> Signal.t I.t -> Signal.t O.t\n  val hierarchical : Scope.t -> Signal.t I.t -> Signal.t O.t\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "I",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "O",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " interfaces and the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "create",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function we already know about.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module I = struct\n  type 'a t =\n    { clock : 'a\n    ; clear : 'a\n    ; foo : 'a [@bits 8]\n    }\n  [@@deriving hardcaml]\nend\n\nmodule O = struct\n  type 'a t = { foo_d : 'a [@bits 8] }\n  [@@deriving hardcaml]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let create (_scope : Scope.t) (input : Signal.t I.t) =\n    let spec_with_clear =\n      Signal.Reg_spec.create ~clock:input.clock ~clear:input.clear ()\n    in\n    let foo_d = Signal.reg spec_with_clear ~enable:Signal.vdd input.foo in\n    { O. foo_d }\nval create : Scope.t -> Signal.t I.t -> Signal.t O.t = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "hierarchical",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is new, and is what we use to generate structured, multi-level Hardcaml",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "designs. It's mechanically derived as follows:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let hierarchical (scope : Scope.t) (input : Signal.t I.t) =\n    let module H = Hierarchy.In_scope(I)(O) in\n    H.hierarchical ~scope ~name:\"module_name\" ~instance:\"module_instance_2\" create input\nval hierarchical : Scope.t -> Signal.t I.t -> Signal.t O.t = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "hierarchical",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function is built using the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hierarchy.In_scope",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " functor. It provides a",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "function called ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "H.hierarchical",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " that takes ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "scope",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "create",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and elaborates it",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "according to whether ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "flatten_design",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " setting of the root scope:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : false,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "type" : "StrongEmphasis",
+              "content" : [ {
+                "text" : "Flattened Mode",
+                "type" : "SimpleText"
+              } ]
+            }, {
+              "text" : " (",
+              "type" : "SimpleText"
+            }, {
+              "code" : "flatten_design = true",
+              "type" : "InlinedCode"
+            }, {
+              "text" : "): The function calls the ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "create",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " function",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "of your submodule directly, which inlines all the logic into the parent circuit. This",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "results in a single, flat module with no hierarchy.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "type" : "StrongEmphasis",
+              "content" : [ {
+                "text" : "Hierarchical Mode",
+                "type" : "SimpleText"
+              } ]
+            }, {
+              "text" : " (",
+              "type" : "SimpleText"
+            }, {
+              "code" : "flatten_design = false",
+              "type" : "InlinedCode"
+            }, {
+              "text" : "): The function generates an",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "instantiation for our subcircuit, then elaborates it separately and stores its",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "implementation in a ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Circuit_database.t",
+              "type" : "InlinedCode"
+            }, {
+              "text" : ". This maintains proper module hierarchy in the",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "generated RTL.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      } ]
+    }, {
+      "id" : "summary",
+      "additionalIds" : [ ],
+      "title" : "Summary",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "If we follow the design pattern here we must pass a scope to our ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "create",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " functions. We",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "then use the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hierarchy.In_scope",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " functor to derive the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "hierarchical",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function. When we",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "want to instantiate a subcircuit, we call ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "hierarchical",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " instead of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "create",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To elaborate a full design, we call the top level ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "create",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function with a scope that will",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "set ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "flatten_design",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " as appropriate. As the design is elaborated (by calling the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "hierarchical",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " functions of subcircuits) we will either build a single large fully inlined",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "design, or just the top level circuit along with a database containing all the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "instantiated subcircuits.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "summary-simulation",
+        "additionalIds" : [ "simulation" ],
+        "level" : 2,
+        "title" : "Simulation",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Here's an example of how we would simulate a hierarchical design:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let create_sim () =\n    let module Sim = Cyclesim.With_interface(I)(O) in\n    let scope = Scope.create ~flatten_design:true () in\n    Sim.create (create scope)\nval create_sim : unit -> (Bits.t ref I.t, Bits.t ref O.t) Cyclesim.t = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "summary-rtl-generation",
+        "additionalIds" : [ "rtl-generation" ],
+        "level" : 2,
+        "title" : "RTL generation",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "For RTL generation we need to do a couple of things:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 1,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Create the scope with ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "flatten_design",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " set to false.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Construct a ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Circuit",
+              "type" : "InlinedCode"
+            }, {
+              "text" : ".",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Get the circuit database from the scope.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Pass the circuit database to the ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Rtl.print",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " function.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let write_verilog () = \n    let module Circuit = Circuit.With_interface(I)(O) in \n    let scope = Scope.create ~flatten_design:false () in \n    let circuit = Circuit.create_exn ~name:\"top\" (create scope) in\n    let database = Scope.circuit_database scope in \n    Rtl.print ~database Verilog circuit\nval write_verilog : unit -> unit = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709444241,
+    "tocItem" : {
+      "chapterTitle" : "Using Interfaces",
+      "pageTitle" : "5.7 Module Hierarchies",
+      "pageMeta" : {
+        "parent" : [ "using_interfaces.mdx" ],
+        "title" : [ "5.7 Module Hierarchies" ],
+        "uuid" : [ "f91e686c-452e-3009-465e-c14ac99c3d78" ]
+      },
+      "dirName" : "using-interfaces",
+      "fileName" : "module_hierarchies",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "A Design Pattern for Circuits",
+        "id" : "a-design-pattern-for-circuits",
+        "customAnchorId" : "a-design-pattern-for-circuits"
+      }, {
+        "title" : "Summary",
+        "id" : "summary",
+        "customAnchorId" : "summary"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

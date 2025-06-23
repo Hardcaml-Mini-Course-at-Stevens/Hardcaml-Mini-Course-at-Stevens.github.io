@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 6.4 FFT</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p></p>
+</article>
+
+<article>
+<header><h1>Fast Fourier Transform</h1></header>
+<p>In this example we will implement a 16 point fast Fourier transform FFT We ll not spend much time going through the theory and will focus on translating a software reference model to hardware For more background you can look up wikipedia</p>
+</article>
+
+<article>
+<header><h1>Software Implementation</h1></header>
+<p>At the heart of the loops we perform a complex multiply and a complex add subtract which is called a butterfly operation We read 2 values from at indices and In addition we look up a table of twiddle factors up at index The butterfly operation is performed and the results are written back to the array The outer most loop runs times The two innermost loops together will perform iterations To generate hardware for this we need to consider the following State machine to generate the and values and control the iterations A ROM to store the twiddle factor coefficients RAMs to store the input output and intermediate values during the outer iterations Logic to implement the butterfly operation let make_twiddle_factors len let pi 3 14159265358979 in let c 2 0 * pi Float of_int len in Array init len 2 f fun i &gt; Complex exp re 0 im c * Float of_int i let fft x let len Array length x in let n_bits Int ceil_log2 len in let w make_twiddle_factors len in let y Array init len f fun i &gt; x bitrev n_bits i in for nb 1 to n_bits do let n 1 lsl nb in let m 1 lsl n_bits nb in for h 0 to m 1 do let ofs n * h in for i 0 to n 2 1 do let j k ofs i ofs i n 2 in let a b y j y k in let wm w i * m in let wb Complex mul wm b in y j &lt; Complex add a wb y k &lt; Complex sub a wb done done done y y j k w wm y log 16 4 16 2 8 j k m</p>
+</article>
+
+<article>
+<header><h1>Hardware Implementation</h1></header>
+<p>The follows shows the architecture we are aiming for We will load FFT coefficients into MEM through the write input The FFT will read and write MEM multiple times to perform the transform Then we will read the result back through the read output Controller state machine Lets look at the values we need to generate We can do that by modifying the FFT code and printing the values we need to generate As stated before the outer loop runs 4 times and the inner two loops combine to run 8 iterations We can encode this into a state machine is follows We now need a way to convert the and values into and Looking the at the addresses we need to generate when we just need to add a bit to the bottom of count Similarly when we insert a bit between bits 0 and 1 of For and we do the same thing at the next bit position up For we shift left by There is one final thing in the FFT code the first thing we do is reorganize the input array as follows We can do this by reversing the input address when we load the input FFT coefficients into the design Here s the final code Butterfly operation To compute the butterfly operation we need to decide how we are going to represent complex numbers Typically we would consider a fixed point format designed to suit our dynamic range and required precision Instead we are going to cheat and use a feature of Hardcaml that lets us represent full precision floating point numbers within hardware simulations The module provides the operators which take and return 64 bit signals and implement various floating point operations over them implements complex multiply and add using it The butterfly implementation is now as follows Twiddle factors This is straight forward we just create a ROM of values from the floating point twiddle factors computed for the software version Memory buffer For simplicity the memory is implemented with 3 read and 3 write ports The FFT algorithm needs to read and write two complex numbers per cycle so that accounts for two of the read write ports In addition we use 1 write port to load the FFT coefficients and 1 read port to get the result The memory will store 16 complex numbers in total It is also set up with asynchronous read ports yet another small simplification for this example This is not a terribly realistic memory structure for efficient implementation but it allows us to complete the design and test it Note that the write address on the first port is reversed as we said would be required Sticking it all together This instantiates the loop controller index generator twiddle factor rom butterfly and memory buffer There is a loop through the butterfly and memory buffer logic which requires us to predefine the and complex values as write input read output &gt; MEM &gt; | FFT # let n_bits 4 val n_bits int 4 # Stdio printf j | k | m n for nb 1 to n_bits do Stdio printf n let n 1 lsl nb in let m 1 lsl n_bits nb in for h 0 to m 1 do let ofs n * h in for i 0 to n 2 1 do let j k ofs i ofs i n 2 in let m i*m in Stdio printf %2d | %2d | %2d n j k m done done done j | k | m 0 | 1 | 0 2 | 3 | 0 4 | 5 | 0 6 | 7 | 0 8 | 9 | 0 10 | 11 | 0 12 | 13 | 0 14 | 15 | 0 0 | 2 | 0 1 | 3 | 4 4 | 6 | 0 5 | 7 | 4 8 | 10 | 0 9 | 11 | 4 12 | 14 | 0 13 | 15 | 4 0 | 4 | 0 1 | 5 | 2 2 | 6 | 4 3 | 7 | 6 8 | 12 | 0 9 | 13 | 2 10 | 14 | 4 11 | 15 | 6 0 | 8 | 0 1 | 9 | 1 2 | 10 | 2 3 | 11 | 3 4 | 12 | 4 5 | 13 | 5 6 | 14 | 6 7 | 15 | 7 unit module State struct type t | Start | Loop @@deriving sexp_of compare localize enumerate end let loop_controller i _ I t let spec Reg_spec create clock i clock clear i clear in let pass Always Variable reg spec width Int ceil_log2 4 in let count Always Variable reg spec width 3 in let sm Always State_machine create module State spec in Always compile sm switch Start pass &lt; 0 count &lt; 0 when_ i start sm set_next Loop Loop count &lt; count value 1 when_ count value 7 pass &lt; pass value 1 when_ pass value 3 sm set_next Start pass value count value sm is Start pass count j k m pass 0 # open Bits # Array init 8 f fun i &gt; let count of_unsigned_int width 3 i in let j count @ gnd in let k count @ vdd in Bits to_unsigned_int j Bits to_unsigned_int k int * int array | 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 | pass 1 count # Array init 8 f fun i &gt; let count of_unsigned_int width 3 i in let j count 2 1 @ gnd @ count 0 in let k count 2 1 @ vdd @ count 0 in Bits to_unsigned_int j Bits to_unsigned_int k int * int array | 0 2 1 3 4 6 5 7 8 10 9 11 12 14 13 15 | pass 2 pass 3 m count 3 pass let y Array init len f fun i &gt; x bitrev n_bits i in let index_generator pass count let jk const mux pass count @ const count 2 1 @ const @ count 0 0 count 2 2 @ const @ count 1 0 const @ count 2 0 in let j jk gnd in let k jk vdd in let m mux pass sll count by 3 sll count by 2 sll count by 1 sll count by 0 in j k m module Dcomplex struct type a t re a @bits 64 im a @bits 64 @@deriving hardcaml open Cyclesim_float_ops Double let add a b re a re b re im a im b im let sub a b re a re b re im a im b im let mul a b re a re * b re a im * b im im a re * b im a im * b re end Cyclcesim_float_ops Double Dcomplex let butterfly a b w let wb Dcomplex mul w b in Dcomplex add a wb Dcomplex sub a wb Dcomplex let bits_of_float type a module Comb Comb S with type t a f a Int64 bits_of_float f |&gt; Comb of_int64_trunc width 64 let float_of_bits b Bits to_int64_trunc b |&gt; Int64 float_of_bits let twiddle_factor_rom m let w make_twiddle_factors 16 in Array to_list w |&gt; List map f fun w Complex t &gt; Dcomplex re bits_of_float module Signal w re im bits_of_float module Signal w im |&gt; Dcomplex Of_signal mux m let memory_buffer clock ext_write _ Write_port t int_write_a _ Write_port t int_write_b _ Write_port t int_read_a int_read_b ext_read let q multiport_memory 16 write_ports | write_clock clock write_data Dcomplex Of_signal pack ext_write data write_enable ext_write enable write_address reverse ext_write address write_clock clock write_data Dcomplex Of_signal pack int_write_a data write_enable int_write_a enable write_address int_write_a address write_clock clock write_data Dcomplex Of_signal pack int_write_b data write_enable int_write_b enable write_address int_write_b address | read_addresses | ext_read int_read_a int_read_b | in Array map q f Dcomplex Of_signal unpack let create i _ I t let scope Scope create in let%hw pass count done_ loop_controller i in let%hw j k m index_generator pass count in let%hw Dcomplex Of_signal w twiddle_factor_rom m in let%hw Dcomplex Of_signal a Dcomplex Of_signal wires in let%hw Dcomplex Of_signal b Dcomplex Of_signal wires in let%hw Dcomplex Of_signal a_next b_next butterfly a b w in let memory_buffer memory_buffer clock i clock ext_write i write int_write_a enable done_ address j data a_next int_write_b enable done_ address k data b_next int_read_a j int_read_b k ext_read i read_address in Dcomplex Of_signal assign a memory_buffer 1 Dcomplex Of_signal assign b memory_buffer 2 O done_ data_out memory_buffer 0 a b wires</p>
+</article>
+
+<article>
+<header><h1>Testing the Design</h1></header>
+<p>To test the FFT design we will need 4 functions simple clear reset of the registers in the design load the input test data start the core and wait for it to complete read back the final results from the design Finally we create our simulator and run a simulation Note that we have provided the to so it knows how to implement the floating point operations Waveform An interesting point here is we are displaying floating point values within the waveform This is done by writing a display rule for floating point numbers clear_core load_fft_coefficients run_fft read_results let clear_core sim Sim t let inputs Cyclesim inputs sim in inputs clear vdd Cyclesim cycle sim inputs clear gnd let load_fft_coefficients sim Sim t let inputs Cyclesim inputs sim in inputs write enable Bits vdd for i 0 to 15 do inputs write address &lt; i inputs write data re bits_of_float module Bits Float of_int i 1 inputs write data im bits_of_float module Bits Float of_int 0 Cyclesim cycle sim done inputs write enable Bits gnd let run_fft sim Sim t let inputs Cyclesim inputs sim in let outputs Cyclesim outputs sim in inputs start Bits vdd Cyclesim cycle sim inputs start Bits gnd while not Bits to_bool outputs done_ do Cyclesim cycle sim done let read_results sim Sim t let inputs Cyclesim inputs sim in let outputs Cyclesim outputs sim in for i 0 to 15 do inputs read_address &lt; i Cyclesim cycle sim let result Complex re float_of_bits outputs data_out re im float_of_bits outputs data_out im in Stdio printf %d %f % fi n i result re result im done Cyclesim_float_ops Double database Cyclesim let hw_test let sim Sim create config Cyclesim Config trace_all with combinational_ops_database Cyclesim_float_ops Double database create in let waves sim Waveform create sim in clear_core sim load_fft_coefficients sim run_fft sim read_results sim Waveform expect waves wave_width 2 display_rules start_cycle 38 let%expect_test hw_test %expect | 0 136 000000 0 000000i 1 8 000000 40 218716i 2 8 000000 19 313708i 3 8 000000 11 972846i 4 8 000000 8 000000i 5 8 000000 5 345429i 6 8 000000 3 313708i 7 8 000000 1 591299i 8 8 000000 0 000000i 9 8 000000 1 591299i 10 8 000000 3 313708i 11 8 000000 5 345429i 12 8 000000 8 000000i 13 8 000000 11 972846i 14 8 000000 19 313708i 15 8 000000 40 218716i SignalsWaves clock                     clear     start     done_     i$enable       pass  2 3      count  4 5 6 7 0 1 2 3 4      j  8 9 10 11 0 1 2 3 4      k  12 13 14 15 8 9 10 11 12     m  0 2 4 6 0 1 2 3 4      i$address  15      read_address  0      i$re  16      i$im  0      o$re  64 136      o$im  0      a$re  32  8 0  8  7 9 64  8 0  8 0  8 0  8     a$im  0 8 0  8 0 19 3 8 3 31 0      b$re  40  8 0  8  7 9 72  8 0  8 0  8 0  8     b$im  0 8 0  8 0 19 3 8 3 31 0      w$re  1 0 70 1 61  0 7 1 0 92 0 70 0 38 1      w$im  0  0 7  1  0 7  0  0 3  0 7  0 9  1     a_next$re  72  8 0  8 0  8 0 136  8 0  8 0  8 0  8     a_next$im  0 19 3 8 3 31 0 40 2 19 3 11 9 8      b_next$re  8  7 9  7 9  7 9  8  7 9  7 9  7 9  7     b_next$im  0  3 3  8  19 0  1 5  3 3  5 3  8    7a788a5d3036c98ecb7da5ed09414842 | Custom let display_rules let float name Display_rule port_name_is name wave_format Custom fun b &gt; float_of_bits b |&gt; Float to_string in let complex name float name ^ $re float name ^ $im in let bit name Display_rule port_name_is name wave_format Bit in let uint name Display_rule port_name_is name wave_format Unsigned_int in bit clock bit clear bit start bit done_ bit i$enable uint pass uint count uint j uint k uint m uint i$address uint read_address complex i complex o complex a complex b complex w complex a_next complex b_next |&gt; List concat</p>
+</article>
+
+<article>
+<header><h1>Improving the Design</h1></header>
+<p>To make this design more realistic there are a few things we would need to change Switching to a fixed point representation of Complex numbers Pipelining the butterfly module and synchronizing the read write processes within the core At the moment it is entirely combinational Making the memory buffer read ports synchronous so they can be implemented efficiently Adding ping pong buffers for the input output stages to reduce the total number of ports required Making it work for generic power of 2 transform sizes</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "id" : "fast-fourier-transform",
+      "additionalIds" : [ ],
+      "title" : "Fast Fourier Transform",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In this example we will implement a 16-point fast Fourier transform (FFT).",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We'll not spend much time going through the theory and will focus on translating a",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "software reference model to hardware. For more background you can look up wikipedia.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "software-implementation",
+      "additionalIds" : [ ],
+      "title" : "Software Implementation",
+      "type" : "Section",
+      "content" : [ {
+        "lang" : "ocaml",
+        "snippet" : "let make_twiddle_factors len =\n  let pi = 3.14159265358979 in\n  let c = ~-.2.0 *. pi /. Float.of_int len in\n  Array.init (len / 2) ~f:(fun i -> Complex.exp { re = 0.; im = c *. Float.of_int i })\n;;\n\nlet fft x =\n  let len = Array.length x in\n  let n_bits = Int.ceil_log2 len in\n  let w = make_twiddle_factors len in\n  let y = Array.init len ~f:(fun i -> x.(bitrev n_bits i)) in\n  for nb = 1 to n_bits do\n    let n = 1 lsl nb in\n    let m = 1 lsl (n_bits - nb) in\n    for h = 0 to m - 1 do\n      let ofs = n * h in\n      for i = 0 to (n / 2) - 1 do\n        let j, k = ofs + i, ofs + i + (n / 2) in\n        let a, b = y.(j), y.(k) in\n        let wm = w.(i * m) in\n        let wb = Complex.mul wm b in\n        y.(j) <- Complex.add a wb;\n        y.(k) <- Complex.sub a wb\n      done\n    done\n  done;\n  y\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "At the heart of the loops we perform a complex multiply and a complex add/subtract which",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "is called a butterfly operation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We read 2 values from ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "y",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " at indices ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "j",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "k",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". In addition we look up a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "w",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " table of",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "twiddle factors up at index ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "wm",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". The butterfly operation is performed and the results are",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "written back to the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "y",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " array.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The outer most loop runs ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "log(16) = 4",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " times. The two innermost loops together will perform",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "16/2=8",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " iterations.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To generate hardware for this we need to consider the following:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 1,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "State machine to generate the ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "j",
+              "type" : "InlinedCode"
+            }, {
+              "text" : ", ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "k",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " and ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "m",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " values and control the iterations.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "A ROM to store the twiddle factor coefficients.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "RAMs to store the input, output and intermediate values during the outer iterations.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Logic to implement the butterfly operation.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      } ]
+    }, {
+      "id" : "hardware-implementation",
+      "additionalIds" : [ ],
+      "title" : "Hardware Implementation",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The follows shows the architecture we are aiming for.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : "write input       read output\n       ---->[MEM]---->\n              |\n            [FFT]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We will load FFT coefficients into MEM through the write input. The FFT will read and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "write MEM multiple times to perform the transform. Then we will read the result back",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "through the read output.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "hardware-implementation-controller-state-machine",
+        "additionalIds" : [ "controller-state-machine" ],
+        "level" : 2,
+        "title" : "Controller state machine",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Lets look at the values we need to generate. We can do that by modifying the FFT code and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "printing the values we need to generate.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let n_bits = 4\nval n_bits : int = 4\n# Stdio.printf \" j |  k |  m\\n\";\n  for nb = 1 to n_bits do\n    Stdio.printf \"------------\\n\";\n    let n = 1 lsl nb in\n    let m = 1 lsl (n_bits - nb) in\n    for h = 0 to m - 1 do\n      let ofs = n * h in\n      for i = 0 to (n / 2) - 1 do\n        let j, k = ofs + i, ofs + i + (n / 2) in\n        let m = i*m in\n        Stdio.printf \"%2d | %2d | %2d\\n\" j k m\n      done\n    done\n  done\n j |  k |  m\n------------\n 0 |  1 |  0\n 2 |  3 |  0\n 4 |  5 |  0\n 6 |  7 |  0\n 8 |  9 |  0\n10 | 11 |  0\n12 | 13 |  0\n14 | 15 |  0\n------------\n 0 |  2 |  0\n 1 |  3 |  4\n 4 |  6 |  0\n 5 |  7 |  4\n 8 | 10 |  0\n 9 | 11 |  4\n12 | 14 |  0\n13 | 15 |  4\n------------\n 0 |  4 |  0\n 1 |  5 |  2\n 2 |  6 |  4\n 3 |  7 |  6\n 8 | 12 |  0\n 9 | 13 |  2\n10 | 14 |  4\n11 | 15 |  6\n------------\n 0 |  8 |  0\n 1 |  9 |  1\n 2 | 10 |  2\n 3 | 11 |  3\n 4 | 12 |  4\n 5 | 13 |  5\n 6 | 14 |  6\n 7 | 15 |  7\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "As stated before, the outer loop runs 4 times, and the inner two loops combine to run 8",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "iterations.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We can encode this into a state machine is follows:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module State = struct\n  type t =\n    | Start\n    | Loop\n  [@@deriving sexp_of, compare ~localize, enumerate]\nend\n\nlet loop_controller (i : _ I.t) =\n  let spec = Reg_spec.create ~clock:i.clock ~clear:i.clear () in\n  let pass = Always.Variable.reg spec ~width:(Int.ceil_log2 4) in\n  let count = Always.Variable.reg spec ~width:3 in\n  let sm = Always.State_machine.create (module State) spec in\n  Always.(\n    compile\n      [ sm.switch\n          [ Start, [ pass <--. 0; count <--. 0; when_ i.start [ sm.set_next Loop ] ]\n          ; ( Loop\n            , [ count <-- count.value +:. 1\n              ; when_\n                  (count.value ==:. 7)\n                  [ pass <-- pass.value +:. 1\n                  ; when_ (pass.value ==:. 3) [ sm.set_next Start ]\n                  ]\n              ] )\n          ]\n      ]);\n  pass.value, count.value, sm.is Start\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We now need a way to convert the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "pass",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "count",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " values into ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "j",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "k",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "m",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Looking the at the addresses we need to generate when ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "pass=0",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " we just need to add a bit",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "to the bottom of count.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# open Bits\n# Array.init 8 ~f:(fun i ->\n    let count = of_unsigned_int ~width:3 i in\n    let j = count @: gnd in\n    let k = count @: vdd in\n    Bits.to_unsigned_int j, Bits.to_unsigned_int k)\n- : (int * int) array =\n[|(0, 1); (2, 3); (4, 5); (6, 7); (8, 9); (10, 11); (12, 13); (14, 15)|]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Similarly, when ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "pass=1",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " we insert a bit between bits 0 and 1 of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "count",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Array.init 8 ~f:(fun i ->\n    let count = of_unsigned_int ~width:3 i in\n    let j = count.:[2,1] @: gnd @: count.:(0) in\n    let k = count.:[2,1] @: vdd @: count.:(0) in\n    Bits.to_unsigned_int j, Bits.to_unsigned_int k)\n- : (int * int) array =\n[|(0, 2); (1, 3); (4, 6); (5, 7); (8, 10); (9, 11); (12, 14); (13, 15)|]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "For ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "pass=2",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "pass=3",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " we do the same thing at the next bit position up.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "For ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "m",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " we shift ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "count",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " left by ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "3-pass",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "There is one final thing - in the FFT code the first thing we do is reorganize the input",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "array as follows:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : "let y = Array.init len ~f:(fun i -> x.(bitrev n_bits i)) in",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We can do this by reversing the input address when we load the input FFT coefficients into",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the design.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Here's the final code:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let index_generator ~pass ~count =\n  let jk const =\n    mux\n      pass\n      [ count @: const\n      ; count.:[2, 1] @: const @: count.:[0, 0]\n      ; count.:[2, 2] @: const @: count.:[1, 0]\n      ; const @: count.:[2, 0]\n      ]\n  in\n  let j = jk gnd in\n  let k = jk vdd in\n  let m =\n    mux pass [ sll count ~by:3; sll count ~by:2; sll count ~by:1; sll count ~by:0 ]\n  in\n  j, k, m\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "hardware-implementation-butterfly-operation",
+        "additionalIds" : [ "butterfly-operation" ],
+        "level" : 2,
+        "title" : "Butterfly operation",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To compute the butterfly operation we need to decide how we are going to represent complex",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "numbers.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Typically we would consider a fixed point format designed to suit our dynamic range and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "required precision. Instead we are going to cheat and use a feature of Hardcaml that lets",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "us represent full precision floating point numbers within hardware simulations.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Dcomplex = struct\n  type 'a t =\n    { re : 'a [@bits 64]\n    ; im : 'a [@bits 64]\n    }\n  [@@deriving hardcaml]\n\n  open Cyclesim_float_ops.Double\n\n  let add a b = { re = a.re +: b.re; im = a.im +: b.im }\n  let sub a b = { re = a.re -: b.re; im = a.im -: b.im }\n\n  let mul a b =\n    { re = (a.re *: b.re) -: (a.im *: b.im); im = (a.re *: b.im) +: (a.im *: b.re) }\n  ;;\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Cyclcesim_float_ops.Double",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " module provides the operators which take and return 64",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "bit signals and implement various floating point operations over them. ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Dcomplex",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "implements complex multiply and add using it.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The butterfly implementation is now as follows:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let butterfly a b w =\n  let wb = Dcomplex.mul w b in\n  Dcomplex.add a wb, Dcomplex.sub a wb\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "hardware-implementation-twiddle-factors",
+        "additionalIds" : [ "twiddle-factors" ],
+        "level" : 2,
+        "title" : "Twiddle factors",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This is straight forward - we just create a ROM of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Dcomplex",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " values from the floating",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "point twiddle factors computed for the software version.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let bits_of_float (type a) (module Comb : Comb.S with type t = a) f : a =\n  Int64.bits_of_float f |> Comb.of_int64_trunc ~width:64\n;;\n\nlet float_of_bits b = Bits.to_int64_trunc b |> Int64.float_of_bits\n\nlet twiddle_factor_rom m =\n  let w = make_twiddle_factors 16 in\n  Array.to_list w\n  |> List.map ~f:(fun (w : Complex.t) ->\n    { Dcomplex.re = bits_of_float (module Signal) w.re\n    ; im = bits_of_float (module Signal) w.im\n    })\n  |> Dcomplex.Of_signal.mux m\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "hardware-implementation-memory-buffer",
+        "additionalIds" : [ "memory-buffer" ],
+        "level" : 2,
+        "title" : "Memory buffer",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "For simplicity, the memory is implemented with 3 read and 3 write ports. The FFT algorithm",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "needs to read and write two complex numbers per cycle so that accounts for two of the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "read/write ports. In addition we use 1 write port to load the FFT coefficients and 1 read",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "port to get the result.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The memory will store 16 complex numbers in total.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "It is also set up with asynchronous read ports - yet another small simplification for",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "this example.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This is not a terribly realistic memory structure for efficient implementation, but it",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "allows us to complete the design and test it.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let memory_buffer\n  ~clock\n  ~(ext_write : _ Write_port.t)\n  ~(int_write_a : _ Write_port.t)\n  ~(int_write_b : _ Write_port.t)\n  ~int_read_a\n  ~int_read_b\n  ~ext_read\n  =\n  let q =\n    multiport_memory\n      16\n      ~write_ports:\n        [| { write_clock = clock\n           ; write_data = Dcomplex.Of_signal.pack ext_write.data\n           ; write_enable = ext_write.enable\n           ; write_address = reverse ext_write.address\n           }\n         ; { write_clock = clock\n           ; write_data = Dcomplex.Of_signal.pack int_write_a.data\n           ; write_enable = int_write_a.enable\n           ; write_address = int_write_a.address\n           }\n         ; { write_clock = clock\n           ; write_data = Dcomplex.Of_signal.pack int_write_b.data\n           ; write_enable = int_write_b.enable\n           ; write_address = int_write_b.address\n           }\n        |]\n      ~read_addresses:[| ext_read; int_read_a; int_read_b |]\n  in\n  Array.map q ~f:Dcomplex.Of_signal.unpack\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Note that the write address on the first port is reversed as we said would be required.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "hardware-implementation-sticking-it-all-together",
+        "additionalIds" : [ "sticking-it-all-together" ],
+        "level" : 2,
+        "title" : "Sticking it all together",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let create (i : _ I.t) =\n  let scope = Scope.create () in\n  let%hw pass, count, done_ = loop_controller i in\n  let%hw j, k, m = index_generator ~pass ~count in\n  let%hw.Dcomplex.Of_signal w = twiddle_factor_rom m in\n  let%hw.Dcomplex.Of_signal a = Dcomplex.Of_signal.wires () in\n  let%hw.Dcomplex.Of_signal b = Dcomplex.Of_signal.wires () in\n  let%hw.Dcomplex.Of_signal a_next, b_next = butterfly a b w in\n  let memory_buffer =\n    memory_buffer\n      ~clock:i.clock\n      ~ext_write:i.write\n      ~int_write_a:{ enable = ~:done_; address = j; data = a_next }\n      ~int_write_b:{ enable = ~:done_; address = k; data = b_next }\n      ~int_read_a:j\n      ~int_read_b:k\n      ~ext_read:i.read_address\n  in\n  Dcomplex.Of_signal.assign a memory_buffer.(1);\n  Dcomplex.Of_signal.assign b memory_buffer.(2);\n  { O.done_; data_out = memory_buffer.(0) }\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This instantiates the loop controller, index generator, twiddle factor rom, butterfly and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "memory buffer.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "There is a loop through the butterfly and memory buffer logic which requires us to predefine the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "a",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "b",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " complex values as ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "wires",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "testing-the-design",
+      "additionalIds" : [ ],
+      "title" : "Testing the Design",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To test the FFT design we will need 4 functions",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 1,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "clear_core",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " simple clear (reset) of the registers in the design.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "load_fft_coefficients",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " load the input test data.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "run_fft",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " start the core and wait for it to complete.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "read_results",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " read back the final results from the design.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let clear_core (sim : Sim.t) =\n  let inputs = Cyclesim.inputs sim in\n  inputs.clear := vdd;\n  Cyclesim.cycle sim;\n  inputs.clear := gnd\n;;\n\nlet load_fft_coefficients (sim : Sim.t) =\n  let inputs = Cyclesim.inputs sim in\n  inputs.write.enable := Bits.vdd;\n  for i = 0 to 15 do\n    inputs.write.address <--. i;\n    inputs.write.data.re := bits_of_float (module Bits) (Float.of_int (i + 1));\n    inputs.write.data.im := bits_of_float (module Bits) (Float.of_int 0);\n    Cyclesim.cycle sim\n  done;\n  inputs.write.enable := Bits.gnd\n;;\n\nlet run_fft (sim : Sim.t) =\n  let inputs = Cyclesim.inputs sim in\n  let outputs = Cyclesim.outputs sim in\n  inputs.start := Bits.vdd;\n  Cyclesim.cycle sim;\n  inputs.start := Bits.gnd;\n  while not (Bits.to_bool !(outputs.done_)) do\n    Cyclesim.cycle sim\n  done\n;;\n\nlet read_results (sim : Sim.t) =\n  let inputs = Cyclesim.inputs sim in\n  let outputs = Cyclesim.outputs sim in\n  for i = 0 to 15 do\n    inputs.read_address <--. i;\n    Cyclesim.cycle sim;\n    let result =\n      { Complex.re = float_of_bits !(outputs.data_out.re)\n      ; im = float_of_bits !(outputs.data_out.im)\n      }\n    in\n    Stdio.printf \"[%d] %f %+fi\\n\" i result.re result.im\n  done\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Finally, we create our simulator and run a simulation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Note that we have provided the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Cyclesim_float_ops.Double.database",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Cyclesim",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " so it",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "knows how to implement the floating point operations.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let hw_test () =\n  let sim =\n    Sim.create\n      ~config:\n        { Cyclesim.Config.trace_all with\n          combinational_ops_database = Cyclesim_float_ops.Double.database\n        }\n      create\n  in\n  let waves, sim = Waveform.create sim in\n  clear_core sim;\n  load_fft_coefficients sim;\n  run_fft sim;\n  read_results sim;\n  Waveform.expect waves ~wave_width:2 ~display_rules ~start_cycle:38\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "testing-the-design-waveform",
+        "additionalIds" : [ "waveform" ],
+        "level" : 2,
+        "title" : "Waveform",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let%expect_test \"\" =\n  hw_test ();\n  [%expect\n    {|\n    [0] 136.000000 +0.000000i\n    [1] -8.000000 +40.218716i\n    [2] -8.000000 +19.313708i\n    [3] -8.000000 +11.972846i\n    [4] -8.000000 +8.000000i\n    [5] -8.000000 +5.345429i\n    [6] -8.000000 +3.313708i\n    [7] -8.000000 +1.591299i\n    [8] -8.000000 +0.000000i\n    [9] -8.000000 -1.591299i\n    [10] -8.000000 -3.313708i\n    [11] -8.000000 -5.345429i\n    [12] -8.000000 -8.000000i\n    [13] -8.000000 -11.972846i\n    [14] -8.000000 -19.313708i\n    [15] -8.000000 -40.218716i\n    ┌Signals────────┐┌Waves──────────────────────────────────────────────┐\n    │clock          ││┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──│\n    │               ││   └──┘  └──┘  └──┘  └──┘  └──┘  └──┘  └──┘  └──┘  │\n    │clear          ││                                                   │\n    │               ││───────────────────────────────────────────────────│\n    │start          ││                                                   │\n    │               ││───────────────────────────────────────────────────│\n    │done_          ││                                                   │\n    │               ││───────────────────────────────────────────────────│\n    │i$enable       ││                                                   │\n    │               ││───────────────────────────────────────────────────│\n    │               ││────────────────────────┬──────────────────────────│\n    │pass           ││ 2                      │3                         │\n    │               ││────────────────────────┴──────────────────────────│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │count          ││ 4    │5    │6    │7    │0    │1    │2    │3    │4 │\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │j              ││ 8    │9    │10   │11   │0    │1    │2    │3    │4 │\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │k              ││ 12   │13   │14   │15   │8    │9    │10   │11   │12│\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │m              ││ 0    │2    │4    │6    │0    │1    │2    │3    │4 │\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││───────────────────────────────────────────────────│\n    │i$address      ││ 15                                                │\n    │               ││───────────────────────────────────────────────────│\n    │               ││───────────────────────────────────────────────────│\n    │read_address   ││ 0                                                 │\n    │               ││───────────────────────────────────────────────────│\n    │               ││───────────────────────────────────────────────────│\n    │i$re           ││ 16.                                               │\n    │               ││───────────────────────────────────────────────────│\n    │               ││───────────────────────────────────────────────────│\n    │i$im           ││ 0.                                                │\n    │               ││───────────────────────────────────────────────────│\n    │               ││──────────────────────────────┬────────────────────│\n    │o$re           ││ 64.                          │136.                │\n    │               ││──────────────────────────────┴────────────────────│\n    │               ││───────────────────────────────────────────────────│\n    │o$im           ││ 0.                                                │\n    │               ││───────────────────────────────────────────────────│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │a$re           ││ 32.  │-8.0.│-8.  │-7.9.│64.  │-8.0.│-8.0.│-8.0.│-8│\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │a$im           ││ 0.   │8.   │0.   │-8.  │0.   │19.3.│8.   │3.31.│0.│\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │b$re           ││ 40.  │-8.0.│-8.  │-7.9.│72.  │-8.0.│-8.0.│-8.0.│-8│\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │b$im           ││ 0.   │8.   │0.   │-8.  │0.   │19.3.│8.   │3.31.│0.│\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │w$re           ││ 1.   │0.70.│1.61.│-0.7.│1.   │0.92.│0.70.│0.38.│1.│\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │w$im           ││ -0.  │-0.7.│-1.  │-0.7.│-0.  │-0.3.│-0.7.│-0.9.│-1│\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │a_next$re      ││ 72.  │-8.0.│-8.0.│-8.0.│136. │-8.0.│-8.0.│-8.0.│-8│\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │a_next$im      ││ 0.   │19.3.│8.   │3.31.│0.   │40.2.│19.3.│11.9.│8.│\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │b_next$re      ││ -8.  │-7.9.│-7.9.│-7.9.│-8.  │-7.9.│-7.9.│-7.9.│-7│\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    │               ││──────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬──│\n    │b_next$im      ││ 0.   │-3.3.│-8.  │-19..│0.   │-1.5.│-3.3.│-5.3.│-8│\n    │               ││──────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴──│\n    └───────────────┘└───────────────────────────────────────────────────┘\n    7a788a5d3036c98ecb7da5ed09414842\n    |}]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "An interesting point here is we are displaying floating point values within the waveform.",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "This is done by writing a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Custom",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " display rule for floating point numbers.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let display_rules =\n  let float name =\n    Display_rule.port_name_is\n      name\n      ~wave_format:(Custom (fun b -> float_of_bits b |> Float.to_string))\n  in\n  let complex name = [ float (name ^ \"$re\"); float (name ^ \"$im\") ] in\n  let bit name = Display_rule.port_name_is name ~wave_format:Bit in\n  let uint name = Display_rule.port_name_is name ~wave_format:Unsigned_int in\n  [ [ bit \"clock\"\n    ; bit \"clear\"\n    ; bit \"start\"\n    ; bit \"done_\"\n    ; bit \"i$enable\"\n    ; uint \"pass\"\n    ; uint \"count\"\n    ; uint \"j\"\n    ; uint \"k\"\n    ; uint \"m\"\n    ; uint \"i$address\"\n    ; uint \"read_address\"\n    ]\n  ; complex \"i\"\n  ; complex \"o\"\n  ; complex \"a\"\n  ; complex \"b\"\n  ; complex \"w\"\n  ; complex \"a_next\"\n  ; complex \"b_next\"\n  ]\n  |> List.concat\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "improving-the-design",
+      "additionalIds" : [ ],
+      "title" : "Improving the Design",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To make this design more realistic there are a few things we would need to change.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 1,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Switching to a fixed point representation of Complex numbers.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Pipelining the butterfly module, and synchronizing the read/write processes within the",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "core. At the moment it is entirely combinational.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Making the memory buffer read ports synchronous so they can be implemented efficiently.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Adding ping pong buffers for the input/output stages to reduce the total number of ports required.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Making it work for generic power of 2 transform sizes.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709444034,
+    "tocItem" : {
+      "chapterTitle" : "Examples",
+      "pageTitle" : "6.4 FFT",
+      "pageMeta" : {
+        "parent" : [ "examples.mdx" ],
+        "title" : [ "6.4 FFT" ],
+        "uuid" : [ "d4d44c81-9748-325a-2b32-4780a6161d9a" ]
+      },
+      "dirName" : "examples",
+      "fileName" : "fft",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Fast Fourier Transform",
+        "id" : "fast-fourier-transform",
+        "customAnchorId" : "fast-fourier-transform"
+      }, {
+        "title" : "Software Implementation",
+        "id" : "software-implementation",
+        "customAnchorId" : "software-implementation"
+      }, {
+        "title" : "Hardware Implementation",
+        "id" : "hardware-implementation",
+        "customAnchorId" : "hardware-implementation"
+      }, {
+        "title" : "Testing the Design",
+        "id" : "testing-the-design",
+        "customAnchorId" : "testing-the-design"
+      }, {
+        "title" : "Improving the Design",
+        "id" : "improving-the-design",
+        "customAnchorId" : "improving-the-design"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

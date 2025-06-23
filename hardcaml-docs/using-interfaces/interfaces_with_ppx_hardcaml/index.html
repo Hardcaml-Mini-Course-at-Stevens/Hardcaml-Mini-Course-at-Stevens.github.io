@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 5.2 Interfaces with ppx_hardcaml</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p></p>
+</article>
+
+<article>
+<header><h1>Interfaces with ppx_hardcaml</h1></header>
+<p>By default the ppx uses the field name for the string name and attribute to specify the field width if not provided it defaults to The ppx supports nesting arrays lists and various tools to manage port naming Nesting Interfaces can contain other interfaces Nesting can go as deep as required Arrays and lists For s and s the lengths must be specified with an attribute Arrays of nested interfaces are also supported Options Fields in an interface may be optional Simple and nested fields are supported The attribute controls if they are included in the interface or not and must be specified Such fields can arise when describing a circuit generator where some configuration option may require extra inputs or outputs module Simple_interface struct type a t foo a @bits 32 bar a * Where a bit width is not specified it defaults to 1 * @@deriving hardcaml end # print_s %message Simple_interface port_names_and_widths string * int Simple_interface t Simple_interface port_names_and_widths foo foo 32 bar bar 1 unit @bits N 1 module Nested_interfaces struct type a t clock a clear a hello a Simple_interface t world a Simple_interface t @@deriving hardcaml end array list module Array_and_list_interfaces struct type a t my_array a array @length 2 my_list a list @length 10 @bits 10 @@deriving hardcaml end module Interface_with_option struct type a t maybe_x a option @exists true @bits 3 maybe_y a Simple_interface t option @exists false @@deriving hardcaml end exists</p>
+</article>
+
+<article>
+<header><h1>Naming</h1></header>
+<p>Naming simple fields By default the field name is used to derive a port name Port names will be used during RTL generation This can be modified with attributes overrides the fields name with the given string apply the given prefix and or suffix to the name and attributes may also be used with nested interfaces though will not work Naming nested interfaces and can be applied to nested interfaces and will apply the given prefix or suffix to each field within the nested interface By default we automatically mangle nested interface names by prefixing them with the field name and a separator to avoid name clashes This functionality can be disabled with or customized by specifying a different separator Global attributes The naming attributes can be specified for all fields as follows and are supported rtlname rtlprefix rtlsuffix module Unmodified_port_names struct type a t a a b a c a @@deriving hardcaml end module Modified_port_names struct type a t a a @rtlname aaa b a @rtlprefix x_ c a @rtlsuffix _x @@deriving hardcaml end # Unmodified_port_names port_names string Unmodified_port_names t Unmodified_port_names a a b b c c # Modified_port_names port_names string Modified_port_names t Modified_port_names a aaa b x_b c c_x rtlprefix rtlsuffix rtlmangle rtlname rtlprefix rtlsuffix $ # Nested_interfaces port_names string Nested_interfaces t Nested_interfaces clock clock clear clear hello Simple_interface foo hello$foo bar hello$bar world Simple_interface foo world$foo bar world$bar rtlmangle false module Nested_interfaces_mangled struct type a t clock a clear a hello a Simple_interface t world a Simple_interface t @@deriving hardcaml rtlmangle _ end # Nested_interfaces_mangled port_names string Nested_interfaces_mangled t Nested_interfaces_mangled clock clock clear clear hello Simple_interface foo hello_foo bar hello_bar world Simple_interface foo world_foo bar world_bar module Global_suffix struct type a t a a b a c a @@deriving hardcaml rtlsuffix _i end rtlprefix rtlsuffix rtlmangle</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "id" : "interfaces-with-ppx_hardcaml",
+      "additionalIds" : [ ],
+      "title" : "Interfaces with ppx_hardcaml",
+      "type" : "Section",
+      "content" : [ {
+        "lang" : "ocaml",
+        "snippet" : "module Simple_interface = struct\n  type 'a t =\n    { foo : 'a [@bits 32]\n    ; bar : 'a (* Where a bit width is not specified, it defaults to 1. *)\n    }\n  [@@deriving hardcaml]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# print_s [%message (Simple_interface.port_names_and_widths : (string * int) Simple_interface.t)]\n(Simple_interface.port_names_and_widths ((foo (foo 32)) (bar (bar 1))))\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "By default the ppx uses the field name for the string name, and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "[@bits N]",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " attribute to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "specify the field width - if not provided it defaults to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "1",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ppx supports nesting, arrays, lists, and various tools to manage port naming.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "interfaces-with-ppx_hardcaml-nesting",
+        "additionalIds" : [ "nesting" ],
+        "level" : 2,
+        "title" : "Nesting",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Interfaces can contain other interfaces:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Nested_interfaces = struct\n  type 'a t =\n    { clock : 'a\n    ; clear : 'a\n    ; hello : 'a Simple_interface.t\n    ; world : 'a Simple_interface.t\n    }\n  [@@deriving hardcaml]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Nesting can go as deep as required.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "interfaces-with-ppx_hardcaml-arrays-and-lists",
+        "additionalIds" : [ "arrays-and-lists" ],
+        "level" : 2,
+        "title" : "Arrays and lists",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "For ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "array",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "list",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s, the lengths must be specified with an attribute.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Array_and_list_interfaces = struct\n  type 'a t =\n    { my_array : 'a array [@length 2]\n    ; my_list : 'a list [@length 10] [@bits 10]\n    }\n  [@@deriving hardcaml]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Arrays of nested interfaces are also supported.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "interfaces-with-ppx_hardcaml-options",
+        "additionalIds" : [ "options" ],
+        "level" : 2,
+        "title" : "Options",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Fields in an interface may be optional. Simple and nested fields are supported.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Interface_with_option = struct \n  type 'a t = \n    { maybe_x : 'a option[@exists true][@bits 3] \n    ; maybe_y : 'a Simple_interface.t option [@exists false]\n    }\n    [@@deriving hardcaml]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The attribute ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "exists",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " controls if they are included in the interface or not and must be",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "specified. Such fields can arise when describing a circuit generator where some",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "configuration option may require extra inputs or outputs.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "naming",
+      "additionalIds" : [ ],
+      "title" : "Naming",
+      "type" : "Section",
+      "content" : [ {
+        "id" : "naming-naming-simple-fields",
+        "additionalIds" : [ "naming-simple-fields" ],
+        "level" : 2,
+        "title" : "Naming simple fields",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "By default, the field name is used to derive a port name. Port names will be used during",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "RTL generation. This can be modified with attributes.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "rtlname",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " overrides the fields name with the given string.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "rtlprefix",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " / ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "rtlsuffix",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " apply the given prefix and/or suffix to the name",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Unmodified_port_names = struct\n  type 'a t =\n    { a : 'a\n    ; b : 'a\n    ; c : 'a\n    }\n  [@@deriving hardcaml]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Modified_port_names = struct\n  type 'a t =\n    { a : 'a[@rtlname \"aaa\"]\n    ; b : 'a[@rtlprefix \"x_\"]\n    ; c : 'a[@rtlsuffix \"_x\"]\n    }\n  [@@deriving hardcaml]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Unmodified_port_names.port_names;;\n- : string Unmodified_port_names.t =\n{Unmodified_port_names.a = \"a\"; b = \"b\"; c = \"c\"}\n# Modified_port_names.port_names;;\n- : string Modified_port_names.t =\n{Modified_port_names.a = \"aaa\"; b = \"x_b\"; c = \"c_x\"}",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "rtlprefix",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "rtlsuffix",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "rtlmangle",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " attributes may also be used with nested",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "interfaces, though ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "rtlname",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " will not work.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "naming-naming-nested-interfaces",
+        "additionalIds" : [ "naming-nested-interfaces" ],
+        "level" : 2,
+        "title" : "Naming nested interfaces",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "rtlprefix",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "rtlsuffix",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " can be applied to nested interfaces and will apply the given",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "prefix or suffix to each field within the nested interface.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "By default, we automatically mangle nested interface names by prefixing them with the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "field name and a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "$",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " separator, to avoid name clashes.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Nested_interfaces.port_names;;\n- : string Nested_interfaces.t =\n{Nested_interfaces.clock = \"clock\"; clear = \"clear\";\n hello = {Simple_interface.foo = \"hello$foo\"; bar = \"hello$bar\"};\n world = {Simple_interface.foo = \"world$foo\"; bar = \"world$bar\"}}",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This functionality can be disabled with ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "~rtlmangle:false",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", or customized by specifying a",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "different separator.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Nested_interfaces_mangled = struct\n  type 'a t =\n    { clock : 'a\n    ; clear : 'a\n    ; hello : 'a Simple_interface.t\n    ; world : 'a Simple_interface.t\n    }\n  [@@deriving hardcaml ~rtlmangle:\"_\"]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Nested_interfaces_mangled.port_names;;\n- : string Nested_interfaces_mangled.t =\n{Nested_interfaces_mangled.clock = \"clock\"; clear = \"clear\";\n hello = {Simple_interface.foo = \"hello_foo\"; bar = \"hello_bar\"};\n world = {Simple_interface.foo = \"world_foo\"; bar = \"world_bar\"}}",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "naming-global-attributes",
+        "additionalIds" : [ "global-attributes" ],
+        "level" : 2,
+        "title" : "Global attributes",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The naming attributes can be specified for all fields as follows:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Global_suffix = struct\n  type 'a t =\n    { a : 'a\n    ; b : 'a\n    ; c : 'a\n    }\n  [@@deriving hardcaml ~rtlsuffix:\"_i\"]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "rtlprefix",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "rtlsuffix",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "rtlmangle",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " are supported.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709444495,
+    "tocItem" : {
+      "chapterTitle" : "Using Interfaces",
+      "pageTitle" : "5.2 Interfaces with ppx_hardcaml",
+      "pageMeta" : {
+        "parent" : [ "using_interfaces.mdx" ],
+        "title" : [ "5.2 Interfaces with ppx_hardcaml" ],
+        "uuid" : [ "48ef0dfa-1472-3118-1663-8302a7b49110" ]
+      },
+      "dirName" : "using-interfaces",
+      "fileName" : "interfaces_with_ppx_hardcaml",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Interfaces with ppx_hardcaml",
+        "id" : "interfaces-with-ppx_hardcaml",
+        "customAnchorId" : "interfaces-with-ppx_hardcaml"
+      }, {
+        "title" : "Naming",
+        "id" : "naming",
+        "customAnchorId" : "naming"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

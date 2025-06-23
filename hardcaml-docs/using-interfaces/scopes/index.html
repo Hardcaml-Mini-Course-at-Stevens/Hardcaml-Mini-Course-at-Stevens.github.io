@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 5.6 Scopes</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>A is a mutable object passed between the circuits that form a complete Hardcaml design It performs a number of roles Track the current position within a design hierarchy Control how we elaborate a design Provide a means to generate hierarchy aware names Record sub circuits within a database Capture side band data such as properties and assertions We will shortly learn how to generate hierarchical designs in Hardcaml and s play a key role in that Creating Scopes s take a few interesting arguments which control how a design is elaborated if the entire circuit is flattened or inlined If it will retain hierarchy a useful option when using the Hardcaml waveform viewer that allows it to show the hierarchical structure of a design control how names are generated The defaults are set up to work with the value of but can be overridden Flattening a Design By default s set to This is generally what you want when generating RTL For simulation this wont work our simulators do not support hierarchical designs so this argument should be set to Sub scopes A new sub scope can be created from a scope This is how we record a design hierarchy Sub scopes are just s placed at the appropriate point in the hierarchy Naming signals with Scopes We can define a scope aware naming function with And this is what we should do within hierarchical Hardcaml designs Note that name of is aware of its position within Using Scopes The main thing we need to do is pass a scope argument to every function we define Sub scopes are then created when we create other circuits This is how they track the current hierarchy position However you shouldn t really ever need to actually do anything much with scopes except Create them with set to true or false depending on whether you want to generate RTL or run a simulation Pass them to your create functions Scope t Scope # let scope Scope create val scope Scope t &lt;abstr&gt; Scope flatten_design true false auto_label_hierarchical_ports naming_scheme flatten_design Scope flatten_design false true # let scope Scope create flatten_design true auto_label_hierarchical_ports true val scope Scope t &lt;abstr&gt; let scope Scope sub_scope scope foo Scope # let Scope naming scope val loc %call_pos &gt; Signal t &gt; string &gt; Signal t &lt;fun&gt; # let x Signal of_string 0 x val x Signal t const names foo$x width 1 value 0b0 x foo create let create scope Scope t i _ I t let foo Foo create Scope sub_scope scope foo in flatten_design</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "A ",
+        "type" : "SimpleText"
+      }, {
+        "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Scope/index.html",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "code" : "Scope.t",
+          "type" : "InlinedCode"
+        } ]
+      }, {
+        "text" : " is a",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "(mutable) object passed between the circuits that form a complete Hardcaml design. It",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "performs a number of roles",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "bulletMarker" : "-",
+      "tight" : true,
+      "type" : "BulletList",
+      "content" : [ {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Track the current position within a design hierarchy.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Control how we elaborate a design.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Provide a means to generate hierarchy aware names.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Record sub-circuits within a database.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Capture ",
+            "type" : "SimpleText"
+          }, {
+            "type" : "Emphasis",
+            "content" : [ {
+              "text" : "side band",
+              "type" : "SimpleText"
+            } ]
+          }, {
+            "text" : " data such as properties and assertions.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "We will shortly learn how to generate hierarchical designs in Hardcaml, and ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Scope",
+        "type" : "InlinedCode"
+      }, {
+        "text" : "s play",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "a key role in that.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "creating-scopes",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Creating Scopes",
+      "type" : "SubHeading"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let scope = Scope.create ()\nval scope : Scope.t = <abstr>",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "code" : "Scope",
+        "type" : "InlinedCode"
+      }, {
+        "text" : "s take a few interesting arguments which control how a design is elaborated.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "bulletMarker" : "-",
+      "tight" : true,
+      "type" : "BulletList",
+      "content" : [ {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "code" : "flatten_design",
+            "type" : "InlinedCode"
+          }, {
+            "text" : " if ",
+            "type" : "SimpleText"
+          }, {
+            "code" : "true",
+            "type" : "InlinedCode"
+          }, {
+            "text" : " the entire circuit is flattened (or inlined). If ",
+            "type" : "SimpleText"
+          }, {
+            "code" : "false",
+            "type" : "InlinedCode"
+          }, {
+            "text" : " it",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "will retain hierarchy.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "code" : "auto_label_hierarchical_ports",
+            "type" : "InlinedCode"
+          }, {
+            "text" : " a useful option when using the Hardcaml waveform viewer",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "that allows it to show the hierarchical structure of a design.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "code" : "naming_scheme",
+            "type" : "InlinedCode"
+          }, {
+            "text" : " control how names are generated. The defaults are set up to work with",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "the value of ",
+            "type" : "SimpleText"
+          }, {
+            "code" : "flatten_design",
+            "type" : "InlinedCode"
+          }, {
+            "text" : ", but can be overridden.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      } ]
+    }, {
+      "id" : "creating-scopes-flattening-a-design",
+      "additionalIds" : [ "flattening-a-design" ],
+      "level" : 3,
+      "title" : "Flattening a Design",
+      "type" : "SubHeading"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "By default ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Scope",
+        "type" : "InlinedCode"
+      }, {
+        "text" : "s set ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "flatten_design",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " to ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "false",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ". This is generally what you want when",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "generating RTL. For simulation this wont work - our simulators do not support hierarchical",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "designs so this argument should be set to ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "true",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ":",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let scope = Scope.create ~flatten_design:true ~auto_label_hierarchical_ports:true ()\nval scope : Scope.t = <abstr>",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "id" : "creating-scopes-sub-scopes",
+      "additionalIds" : [ "sub-scopes" ],
+      "level" : 3,
+      "title" : "Sub-scopes",
+      "type" : "SubHeading"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "A new sub-scope can be created from a scope.  This is how we record a design hierarchy.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "let scope = Scope.sub_scope scope \"foo\"",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Sub-scopes are just ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Scope",
+        "type" : "InlinedCode"
+      }, {
+        "text" : "s placed at the appropriate point in the hierarchy.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "naming-signals-with-scopes",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Naming signals with Scopes",
+      "headingContent" : [ {
+        "text" : "Naming signals with ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Scope",
+        "type" : "InlinedCode"
+      }, {
+        "text" : "s",
+        "type" : "SimpleText"
+      } ],
+      "type" : "SubHeading"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "We can define a scope aware naming function with:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let (--) = Scope.naming scope\nval ( -- ) : loc:[%call_pos] -> Signal.t -> string -> Signal.t = <fun>",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "And this is what we should do within hierarchical Hardcaml designs.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let x = Signal.of_string \"0\" -- \"x\"\nval x : Signal.t = (const (names (foo$x)) (width 1) (value 0b0))",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Note that name of ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "x",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " is aware of its position within ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "foo",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ".",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "using-scopes",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Using Scopes",
+      "type" : "SubHeading"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The main thing we need to do is pass a scope argument to every ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "create",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " function we",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "define:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "let create (scope : Scope.t) (i : _ I.t) =\n  let foo = Foo.create (Scope.sub_scope scope \"foo\") in\n  ...",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Sub-scopes are then created when we create other circuits. This is how they track the",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "current hierarchy position.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "However, you shouldn't really ever need to actually do anything much with scopes except:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "bulletMarker" : "-",
+      "tight" : true,
+      "type" : "BulletList",
+      "content" : [ {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Create them with ",
+            "type" : "SimpleText"
+          }, {
+            "code" : "flatten_design",
+            "type" : "InlinedCode"
+          }, {
+            "text" : " set to true or false depending on whether you want to",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "generate RTL or run a simulation.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Pass them to your create functions.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443233,
+    "tocItem" : {
+      "chapterTitle" : "Using Interfaces",
+      "pageTitle" : "5.6 Scopes",
+      "pageMeta" : {
+        "parent" : [ "using_interfaces.mdx" ],
+        "title" : [ "5.6 Scopes" ],
+        "uuid" : [ "10a3debf-e820-35f5-5239-a8c435568edc" ]
+      },
+      "dirName" : "using-interfaces",
+      "fileName" : "scopes",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

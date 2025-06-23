@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 4.2 Always DSL</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>The DSL in Hardcaml lets one describe circuits in a similar style to a Verilog block Always blocks allow hardware multiplexer structures to be described in a somewhat imperative manner using variable assignments if else conditions switches and a simple procedural macro construct This programming model often makes complicated logic such as state machines easier to reason about Always always</p>
+</article>
+
+<article>
+<header><h1>The Always DSL</h1></header>
+<p>There are two key components when using the Always DSL 1 Variable Declarations There are two kinds of variable declarations namely wires and registers A is one whose value is sequentially updated on the edge of the clock signal provided within a type A is one whose value is updated combinationally meaning that the new value is visible at the same clock cycle as when it is assigned The new value will not persist to the next cycle If no such assignment exists the variable will possess the value Both kinds of variable will return the same type namely an Variables may be assigned within an Always block To read the value of a variable access the field which provides a that can be used to form expressions 2 Writing an Always Program Having declared the variables we can now write the actual procedural blocks An program comprises assignments to variables optionally guarded by or conditional statements For example Notice the call to the function surrounding the procedural block Two things going on here Notice that returns a unit This is because variable declarations create unassigned wires and the compile function assigns them to the appropriate multiplexers Notice that the Always DSL is just a list of This means we can play with various meta programming and abstraction tricks within these program blocks Example The following is an example of these pieces put together Differences to Verilog Always blocks The semantics are similar to Verilog with a few caveats Assignments are non blocking Hardcaml does not support blocking assignments In Verilog an Always block can describe either registers or combinational logic but not both With the Always DSL both can be defined in a single block Hardcaml Always blocks do not require a sensitivity list the clocks driving the registers are bound to the register variable themselves How values update The reader might be surprised by the following example The rule is the last assignment executed will set the next value open Base open Hardcaml reg Reg_spec t # * Creates a register variable * Always Variable reg width int &gt; Always Variable t Signal with_register_spec &lt;fun&gt; wire default # * Creates a wire register that is the value of the wire * Always Variable wire default Signal t &gt; unit &gt; Always Variable t &lt;fun&gt; Always Variable t # let foo Always Variable wire default Signal gnd val foo Always Variable t Hardcaml Always Variable value wire width 1 internal &lt;abstr&gt; value Signal t # foo value Signal t wire width 1 Always if_ when switch let something let open Signal in let a input a 1 in let b input b 1 in let c Always Variable wire default gnd in let d Always Variable wire default gnd in let e Always Variable wire default gnd in Always compile * Assignments * c &lt; a ^ b * if_ statements * if_ a b d &lt; vdd d &lt; gnd * when_ is like if_ with an empty else * when_ c value e &lt; 1 compile # Always compile Always t list &gt; unit &lt;fun&gt; compile Always t let clock Signal input clock 1 let clear Signal input clear 1 let a Signal input a 8 let b Signal input b 8 let r_sync Signal Reg_spec create clock clear let create let open Signal in * wire and register variable declarations * let c_wire Always Variable wire default Signal zero 8 in let c_reg Always Variable reg enable Signal vdd r_sync width 8 in * The program block with a call to compile * Always compile if_ a b c_wire &lt; sll a by 1 c_reg &lt; sll a by 1 c_wire &lt; a b c_reg &lt; a b * The c_wire value are assigned appropriately by the Always compiler * output c_wire c_wire value output c_reg c_reg value let counter_thing enable let open Signal in let a Always Variable reg enable vdd r_sync width 8 in Always compile * Here we might expect a to take the values 10 or 11 depending on enable But that is not the case While enable is high a will increment by one every clock cycle When enable is low a is set to 10 * a &lt; 10 when_ enable a &lt; a value 1</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The ",
+        "type" : "SimpleText"
+      }, {
+        "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Always/index.html",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "code" : "Always",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " DSL",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "in Hardcaml lets one describe circuits",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "in a similar style to a Verilog ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "always",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " block. Always blocks allow",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "hardware multiplexer structures to be described in a somewhat",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "imperative manner using variable assignments, if-else conditions,",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "switches and a simple procedural macro construct.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "This programming model often makes complicated logic (such as",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "state machines) easier to reason about.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "the-always-dsl",
+      "additionalIds" : [ ],
+      "title" : "The Always DSL",
+      "type" : "Section",
+      "content" : [ {
+        "lang" : "ocaml",
+        "snippet" : "open Base\nopen Hardcaml",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "There are two key components when using the Always DSL:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "the-always-dsl-1-variable-declarations",
+        "additionalIds" : [ "1-variable-declarations" ],
+        "level" : 2,
+        "title" : "1. Variable Declarations",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "There are two kinds of variable declarations, namely wires and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "registers.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "reg",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is one whose value is sequentially updated on the edge of the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "clock signal provided within a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Reg_spec.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " type.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# (* Creates a register variable. *)\n  Always.Variable.reg\n- : (width:int -> Always.Variable.t) Signal.with_register_spec = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "wire",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is one whose value is updated combinationally, meaning that",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the new value is visible at the same clock cycle as when it is",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "assigned. The new value ",
+          "type" : "SimpleText"
+        }, {
+          "type" : "Emphasis",
+          "content" : [ {
+            "text" : "will not",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " persist to the next cycle. If no",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "such assignment exists, the variable will possess the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "default",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " value.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# (* Creates a wire register, that is, the value of the wire. *)\n  Always.Variable.wire\n- : default:Signal.t -> unit -> Always.Variable.t = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Both kinds of variable will return the same type, namely an ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Always.Variable.t",
+          "type" : "InlinedCode"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let foo = Always.Variable.wire ~default:Signal.gnd () ;;\nval foo : Always.Variable.t =\n  {Hardcaml.Always.Variable.value = (wire (width 1)); internal = <abstr>}",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Variables may be assigned within an Always block. To read the value",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "of a variable, access the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "value",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " field, which provides a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Signal.t",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "that can be used to form expressions.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# foo.value;;\n- : Signal.t = (wire (width 1))",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "the-always-dsl-2-writing-an-always-program",
+        "additionalIds" : [ "2-writing-an-always-program" ],
+        "level" : 2,
+        "title" : "2. Writing an Always Program",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Having declared the variables, we can now write the actual",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "'procedural' blocks.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "An ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Always",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " program comprises assignments to variables optionally",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "guarded by ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "if_",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "when",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " or ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "switch",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " conditional statements. For example:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let something =\n  let open Signal in\n  let a = input \"a\" 1 in\n  let b = input \"b\" 1 in\n  let c = Always.Variable.wire ~default:gnd () in\n  let d = Always.Variable.wire ~default:gnd () in\n  let e = Always.Variable.wire ~default:gnd () in\n  Always.(compile [\n    (* Assignments. *)\n    c <-- (a ^: b );\n\n    (* [if_] statements. *)\n    if_ (a ==: b) [\n      d <-- vdd;\n    ] [\n      d <-- gnd;\n    ];\n\n    (* [when_] is like [if_], with an empty [else]. *)\n    when_ c.value [\n      e <--. 1;\n    ];\n  ]);\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Notice the call to the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "compile",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function surrounding the procedural",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "block.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Always.compile\n- : Always.t list -> unit = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Two things going on here:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Notice that ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "compile",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " returns a unit. This is because variable",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "declarations create unassigned wires, and the compile function assigns them",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "to the appropriate multiplexers.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Notice that the Always DSL is just a list of ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Always.t",
+              "type" : "InlinedCode"
+            }, {
+              "text" : ". This",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "means we can play with various meta-programming and abstraction",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "tricks within these program blocks.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "id" : "the-always-dsl-example",
+        "additionalIds" : [ "example" ],
+        "level" : 2,
+        "title" : "Example",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The following is an example of these pieces put together.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let clock = Signal.input \"clock\" 1\nlet clear = Signal.input \"clear\" 1\nlet a = Signal.input \"a\" 8\nlet b = Signal.input \"b\" 8\nlet r_sync = Signal.Reg_spec.create ~clock ~clear ()\n\nlet create =\n  let open Signal in\n  (* [wire] and [register] variable declarations. *)\n  let c_wire = Always.Variable.wire ~default:(Signal.zero 8) () in\n  let c_reg = Always.Variable.reg ~enable:Signal.vdd r_sync ~width:8 in\n  (* The program block with a call to [compile]. *)\n  Always.(compile [\n    if_ (a ==: b) [\n      c_wire <-- (sll a ~by:1);\n      c_reg  <-- (sll a ~by:1)\n    ] [\n      c_wire <-- (a +: b);\n      c_reg  <-- (a +: b);\n    ]\n  ]);\n  (* The [c_wire.value] are assigned appropriately by the Always\n  compiler. *)\n  output \"c_wire\" c_wire.value, output \"c_reg\" c_reg.value\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "the-always-dsl-differences-to-verilog-always-blocks",
+        "additionalIds" : [ "differences-to-verilog-always-blocks" ],
+        "level" : 2,
+        "title" : "Differences to Verilog Always blocks",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The semantics are similar to Verilog, with a few caveats:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Assignments are non-blocking. Hardcaml does not support blocking assignments.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "In Verilog, an Always block can describe either registers or combinational logic, but",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "not both. With the Always DSL, both can be defined in a single block.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Hardcaml Always blocks do not require a sensitivity list - the clocks driving the",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "registers are bound to the register variable themselves.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "id" : "the-always-dsl-how-values-update",
+        "additionalIds" : [ "how-values-update" ],
+        "level" : 2,
+        "title" : "How values update",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The reader might be surprised by the following example.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let counter_thing enable =\n  let open Signal in\n  let a = Always.Variable.reg ~enable:vdd r_sync ~width:8 in\n  Always.(compile [\n    (* Here we might expect [a] to take the values [10] or [11], depending on\n       [enable].  But that is not the case.  While [enable] is high, [a] will\n       increment by one every clock cycle.  When [enable] is low [a] is set to\n       10.  *)\n    a <--. 10;\n    when_ (enable) [\n      a <-- a.value +:. 1;\n    ]\n  ]);\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The rule is: the last assignment executed will set the next value.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709442977,
+    "tocItem" : {
+      "chapterTitle" : "More On Circuit Design",
+      "pageTitle" : "4.2 Always DSL",
+      "pageMeta" : {
+        "parent" : [ "more_design.mdx" ],
+        "title" : [ "4.2 Always DSL" ],
+        "uuid" : [ "77a88612-8b18-3290-41a2-84f75434e824" ]
+      },
+      "dirName" : "more-on-circuit-design",
+      "fileName" : "always",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "The Always DSL",
+        "id" : "the-always-dsl",
+        "customAnchorId" : "the-always-dsl"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 3.1 Simulating with Cyclesim</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>The simplest way to simulate a Hardcaml circuit is to use the module This will take a and perform various transformations in order to produce an executable model of the design A testbench is used to control the design by Performing a reset Stepping the simulation forward by 1 cycle Setting inputs ports Reading output ports Cyclesim Circuit t</p>
+</article>
+
+<article>
+<header><h1>Working with Simulators</h1></header>
+<p>A simulation is built from a circuit as follows First we will create a trivial circuit Now we can build a simulator for this circuit Once we have the simulator we can query its input and output ports These functions use the input and output port names given when we constructed the circuit Note that looking up a non existent port will produce an exception The functions and control the simulator sets all registers to their default initial value reads the values on the current input ports updates the internal combinational and sequential logic and calculates the new values of the circuit outputs Input and output ports are of type We set an input as follows and read an output like so The simulation algorithm Cyclesim performs the following steps when is called Based on the current value of the inputs update in the correct order all the combinational nodes in the circuit Nodes which read a register or memory read port use their current value Update all registers and memory writes The previous step will have defined the new values to load Perform a final update of the subset of combinational nodes that depend on the new register memory values Before and After outputs When we look up an output port there is an optional argument It defaults to which means the output value after all 3 steps of the simulation algorithm have run samples the values after step 1 that is before the sequential nodes update # open Base # open Hardcaml # let circuit Circuit create_exn name test Signal output y input x 1 val circuit Circuit t &lt;abstr&gt; # let simulator _ Cyclesim t Cyclesim create circuit val simulator Cyclesim Port_list t Cyclesim Port_list t Cyclesim t &lt;abstr&gt; # let x Cyclesim in_port simulator x val x Bits t ref Base Ref contents 0 # let y Cyclesim out_port simulator y val y Bits t ref Base Ref contents 0 # let foo Cyclesim in_port simulator foo Exception Couldn t find input port foo reset cycle reset cycle # Cyclesim reset simulator unit # Cyclesim cycle simulator unit Bits t ref # x Bits vdd unit # y Bits t 1 # Bits width y int 1 # Bits to_unsigned_int y int 1 # Cyclesim cycle simulator unit # Bits to_unsigned_int y int 0 cycle clock_edge After Before</p>
+</article>
+
+<article>
+<header><h1>Limitations</h1></header>
+<p>Cyclesim implements a cycle accurate simulation algorithm This is in contrast to the more complex event driven simulators often used for RTL design Verilator is an example of a popular cycle accurate simulator while Icarus Verilog and Modelsim are examples of event driven simulators While event driven simulators are more powerful for testing standard synchronous designs cycle accurate simulators are generally good enough simpler to write testbenches for and easier to make run reasonably fast The Hardcaml Cyclesim simulator also add some further restrictions We only support 1 clock In designs with more that 1 clock they are all assumed to be the same We don t model different clock edges we assume everything is rising edge triggered We only support 2 state logic The Hardcaml toolset provides an event driver simulator framework with the library This is rather more complex to use but provides more accurate modeling possibilities Hardcaml_event_driven_sim</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The simplest way to simulate a Hardcaml circuit is to use the",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Cyclesim/index.html",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "code" : "Cyclesim",
+          "type" : "InlinedCode"
+        } ]
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "module.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "This will take a ",
+        "type" : "SimpleText"
+      }, {
+        "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Circuit/index.html",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "code" : "Circuit.t",
+          "type" : "InlinedCode"
+        } ]
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "and perform various transformations in",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "order to produce an executable model of the design.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "A testbench is used to control the design by:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "delimiter" : ".",
+      "startNumber" : 1,
+      "type" : "OrderedList",
+      "content" : [ {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Performing a reset",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Stepping the simulation forward by 1 cycle",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Setting inputs ports",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Reading output ports",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      } ]
+    }, {
+      "id" : "working-with-simulators",
+      "additionalIds" : [ ],
+      "title" : "Working with Simulators",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A simulation is built from a circuit as follows. First, we will create",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "a trivial circuit.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# open Base\n# open Hardcaml\n# let circuit = Circuit.create_exn ~name:\"test\" Signal.[ output \"y\" ~:(input \"x\" 1)]\nval circuit : Circuit.t = <abstr>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Now we can build a simulator for this circuit.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let (simulator : _ Cyclesim.t) = Cyclesim.create circuit\nval simulator : (Cyclesim.Port_list.t, Cyclesim.Port_list.t) Cyclesim.t =\n  <abstr>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Once we have the simulator we can query its input and output ports.",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "These functions use the input and output port names given when we",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "constructed the circuit.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let x = Cyclesim.in_port simulator \"x\"\nval x : Bits.t ref = {Base.Ref.contents = 0}\n# let y = Cyclesim.out_port simulator \"y\"\nval y : Bits.t ref = {Base.Ref.contents = 0}",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Note that looking up a non-existent port will produce an exception",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let foo = Cyclesim.in_port simulator \"foo\"\nException: (\"Couldn't find input port\" foo)",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The functions ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "reset",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "cycle",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " control the simulator. ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "reset",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " sets",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "all registers to their default (initial) value. ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "cycle",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " reads the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "values on the current input ports, updates the internal combinational",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "and sequential logic, and calculates the new values of the circuit",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "outputs.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Cyclesim.reset simulator\n- : unit = ()\n# Cyclesim.cycle simulator\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Input and output ports are of type",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Bits/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "Bits.t ref",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "We set an input as follows:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# x := Bits.vdd\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "and read an output like so:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# !y\n- : Bits.t = 1\n# Bits.width !y\n- : int = 1\n# Bits.to_unsigned_int !y\n- : int = 1\n# Cyclesim.cycle simulator\n- : unit = ()\n# Bits.to_unsigned_int !y\n- : int = 0",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "working-with-simulators-the-simulation-algorithm",
+        "additionalIds" : [ "the-simulation-algorithm" ],
+        "level" : 2,
+        "title" : "The simulation algorithm",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Cyclesim performs the following steps when ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "cycle",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is called.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 1,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Based on the current value of the inputs, update (in the correct order) all the",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "combinational nodes in the circuit. Nodes which read a register or memory read port use",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "their current value.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Update all registers and memory writes. The previous step will have defined the new",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "values to load.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Perform a final update of the (subset of) combinational nodes that depend on the new",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "register/memory values.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "id" : "working-with-simulators-the-simulation-algorithm-before-and-after-outputs",
+        "additionalIds" : [ "before-and-after-outputs" ],
+        "level" : 3,
+        "title" : "Before and After outputs",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "When we look up an output port there is an optional argument ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "clock_edge",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". It defaults to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "After",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " which means the output value after all 3 steps of the simulation algorithm have",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "run. ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Before",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " samples the values after step 1 - that is before the sequential nodes update.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "limitations",
+      "additionalIds" : [ ],
+      "title" : "Limitations",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Cyclesim implements a cycle-accurate simulation algorithm. This is in contrast to the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "more complex event-driven simulators often used for RTL design.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Verilator is an example of a popular cycle-accurate simulator, while Icarus Verilog and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "Modelsim are examples of event-driven simulators.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "While event-driven simulators are more powerful, for testing standard synchronous designs",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "cycle accurate simulators are generally good enough, simpler to write testbenches for and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "easier to make run reasonably fast.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The Hardcaml Cyclesim simulator also add some further restrictions:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "We only support 1 clock. In designs with more that 1 clock, they are all assumed to be",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "the same.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "We don't model different clock edges - we assume everything is rising edge triggered.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "We only support 2 state logic.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The Hardcaml toolset provides an event driver simulator framework with the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Hardcaml_event_driven_sim",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " library. This is rather more complex to use but provides more",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "accurate modeling possibilities.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443619,
+    "tocItem" : {
+      "chapterTitle" : "Simulating Circuits",
+      "pageTitle" : "3.1 Simulating with Cyclesim",
+      "pageMeta" : {
+        "parent" : [ "simulating_circuits.mdx" ],
+        "title" : [ "3.1 Simulating with Cyclesim" ],
+        "uuid" : [ "70fe5fd2-1da7-36c5-a0af-2a50d1b08f42" ]
+      },
+      "dirName" : "simulating-circuits",
+      "fileName" : "simulation",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Working with Simulators",
+        "id" : "working-with-simulators",
+        "customAnchorId" : "working-with-simulators"
+      }, {
+        "title" : "Limitations",
+        "id" : "limitations",
+        "customAnchorId" : "limitations"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

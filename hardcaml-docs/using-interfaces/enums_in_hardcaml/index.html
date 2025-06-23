@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 5.5 Enums in Hardcaml</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>Hardcaml provides support for enumerations with a finite number of instances through the Enum module An Enum type declares a finite ie non recursive set of variants and requires a deriving specification as follows The variant cases defining an enum may in turn have arguments which are also Enums The functor creates two modules called and Each of these modules conforms to the signature so they can be treated as regular Hardcaml interfaces The parameter specifies the underlying type of the enum ie in designing circuits it would be and in simulations it will be Both variants have a similar API differing only in their encoding as a bit vector From here on we will demonstrate the API The generated modules contain functions to transform statically known enums into arbitrary desired so long the provided satisfied the interface Both and shipped with Hardcaml support them You get several enum specific features for defining circuits in the regular Signal like API notably the function for multiplexing on the enum value Note that this differs from which creates a multiplexer that returns a value of the type enum The function is also defined for the Always API which makes it really clean to write pattern match like applications on enums Similar to there is an optional argument for non exhaustive matches This generated enum module implements the so you get access to the various convenient functions defined in and For example The generated enum can even be used as part of regular Hardcaml interfaces This makes Hardcaml Enums powerful since the circuit interfaces can simply use it without nasty type conversions For example For more advanced usage you can convert to the underlying or value The function only performs checks on widths It is the caller s responsibility to ensure that when it s the provided raw value is always one hot when it s the provided raw value should be strictly less than the number of possible cases Enums are well supported in simulations too Let s make a little state machine that increments or decrements a counter based on an enum s input value The module simulation will also output the previous clock cycle s enum input Since these enum files are not simply of type we need to opt for special APIs for getting setting them in simulations Using those functions we can drive a Hardcaml Cyclesim t similar to regular Hardcaml sims module Simple_enum_example struct module Enum struct type t | Foo | Bar @@deriving sexp_of compare localize enumerate end include Hardcaml Enum Make_enums Enum end open Base open Hardcaml module Foo struct type t | Foo_a | Foo_b @@deriving sexp_of compare localize enumerate end module Bar struct type t | Bar_a | Bar_b | Bar_c @@deriving sexp_of compare localize enumerate end module Hello struct module Enum struct type t | Foo of Foo t | Bar of Bar t @@deriving sexp_of compare localize enumerate end include Hardcaml Enum Make_enums Enum end Make_enums One_hot Binary Hardcaml Interface S a Signal t Bits t ref Binary of_enum a t a Comb S module Bits module Signal # let x Signal t Hello Binary t Hello Binary of_enum module Signal Foo Foo_a val x Signal t Hello Binary t &lt;abstr&gt; # let y Hello Binary Of_signal of_enum Bar Bar_a val y Signal t Hello Binary t &lt;abstr&gt; # let z Hello Binary Of_signal x y val z Signal t const width 1 value 0b0 # let a Hello Binary Of_signal is x Foo Foo_a val a Signal t const width 1 value 0b1 match_ mux let non_exhaustive_matching let open Signal in Hello Binary match_ module Signal * default needs to be specified when the match cases are not exhaustive * default zero 10 x Foo Foo_a ones 10 Bar Bar_a zero 10 * Of_signal match_ is similar to match_ except it does not require an explicit a first class module argument * let exhaustive_matching let open Signal in Hello Binary Of_signal match_ y Foo Foo_a of_unsigned_int width 10 55 Foo Foo_b of_unsigned_int width 10 44 Bar Bar_a of_unsigned_int width 10 66 Bar Bar_b of_unsigned_int width 10 88 Bar Bar_c of_unsigned_int width 10 77 match_ Of_signal match_ default # Hello Binary Of_always match_ default Always t list &gt; Signal t Hello Binary t &gt; Hello Enum t * Always t list list &gt; Always t &lt;fun&gt; # let exhaustive_matching case Hello Binary Of_always match_ default * The default case here * case Foo Foo_a * Some logic here * Bar Bar_a * Even more logic here * val exhaustive_matching Signal t Hello Binary t &gt; Always t &lt;fun&gt; Hardcaml Interface S Of_signal Of_always Of_bits * A multiplexer that returns value of the enum as opposed to multiplexing on the enum itself as match_ does * let multiplexers let selector Signal input selector 2 in Hello Binary Of_signal mux selector of_enum Foo Foo_a of_enum Bar Bar_a of_enum Bar Bar_b of_enum Foo Foo_b let clock Signal input clock 1 let spec Signal Reg_spec create clock * Registers that stores the enum value * let registers Signal t Hello Binary t let wires Hello Binary Of_signal wires in Hello Binary Of_signal reg enable Signal vdd spec wires * Usage in always blocks You can almost seamlessly assign values to them * let _ Always t list let cond Signal input cond 1 in let var Hello Binary Of_always reg enable Signal vdd spec in let assign_hello Hello Binary Of_always assign in Always if_ cond assign_hello var Hello Binary Of_signal of_enum Foo Foo_a @@ * This doesn t make much sense in practice This is just to the value function * assign_hello var Hello Binary Of_always value var module I struct type a t clock a clear a hello a Hello Binary t @@deriving hardcaml end Bits t Signal t of_raw One_hot Binary # let this_will_raise_due_to_a_width_mismatch Hello Binary Of_signal of_raw Signal of_unsigned_int width 30 10 Exception Failure Width mismatch Enum expects 3 but obtained 30 # let this_is_valid_and_fine Hello Binary Of_signal of_raw Signal of_unsigned_int width 3 0 val this_is_valid_and_fine Signal t Hello Binary t &lt;abstr&gt; # let this_is_undefined_and_will_not_raise Hello Binary Of_signal of_raw Signal of_unsigned_int width 3 6 val this_is_undefined_and_will_not_raise Signal t Hello Binary t &lt;abstr&gt; module O struct type a t counter a @bits 32 prev_hello a Hello Binary t @rtlmangle true @@deriving hardcaml end # let create i _ I t let open Signal in let spec Signal Reg_spec create clock i clock clear i clear in let ctr Always Variable reg spec width 32 enable vdd in let prev_hello Hello Binary Of_always reg enable vdd spec in Always compile Hello Binary Of_always match_ i hello * Foo increments * Foo Foo_a ctr &lt; ctr value 1 Foo Foo_b ctr &lt; ctr value 2 * Bar decrements * Bar Bar_a ctr &lt; ctr value 1 Bar Bar_b ctr &lt; ctr value 2 Bar Bar_c ctr &lt; ctr value 3 Hello Binary Of_always assign prev_hello i hello O counter ctr value prev_hello Hello Binary Of_always value prev_hello val create Signal t I t &gt; Signal t O t &lt;fun&gt; Bits t ref # Hello Binary sim_set Bits t ref Hello Binary t &gt; Hello Enum t &gt; unit &lt;fun&gt; # Hello Binary sim_set_raw Bits t ref Hello Binary t &gt; Bits t &gt; unit &lt;fun&gt; # Hello Binary sim_get Bits t ref Hello Binary t &gt; Hello Enum t Or_error t &lt;fun&gt; # Hello Binary sim_get_raw Bits t ref Hello Binary t &gt; Bits t &lt;fun&gt; let sim let module Sim Cyclesim With_interface I O in Sim create create let inputs Cyclesim inputs sim let outputs Cyclesim outputs sim let print let prev_hello Or_error ok_exn Hello Binary sim_get outputs prev_hello in let counter Bits to_unsigned_int outputs counter in Stdio print_s %message prev_hello Hello Enum t counter int # Hello Binary sim_set inputs hello Foo Foo_a unit # Cyclesim cycle sim unit # print prev_hello Foo Foo_a counter 1 unit # Hello Binary sim_set inputs hello Foo Foo_b unit # Cyclesim cycle sim unit # print prev_hello Foo Foo_b counter 3 unit # Hello Binary sim_set inputs hello Bar Bar_a unit # Cyclesim cycle sim unit # Cyclesim cycle sim unit # print prev_hello Bar Bar_a counter 1 unit</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Hardcaml provides support for enumerations with a finite number of",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "instances through the Enum module. An Enum type declares a finite (ie",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "non-recursive) set of variants and requires a deriving specification",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "as follows.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "module Simple_enum_example = struct\n  module Enum = struct\n    type t =\n      | Foo\n      | Bar\n    [@@deriving sexp_of, compare ~localize, enumerate]\n  end\n\n  include Hardcaml.Enum.Make_enums(Enum)\nend",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The variant cases defining an enum may in turn have arguments which",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "are also Enums.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "open Base\nopen Hardcaml\n\nmodule Foo = struct\n  type t =\n    | Foo_a\n    | Foo_b\n  [@@deriving sexp_of, compare ~localize, enumerate]\nend\n\nmodule Bar = struct\n  type t =\n    | Bar_a\n    | Bar_b\n    | Bar_c\n  [@@deriving sexp_of, compare ~localize, enumerate]\nend\n\nmodule Hello = struct\n  module Enum = struct\n    type t =\n      | Foo of Foo.t\n      | Bar of Bar.t\n    [@@deriving sexp_of, compare ~localize, enumerate]\n  end\n\n  include Hardcaml.Enum.Make_enums(Enum)\nend",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Make_enums",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " functor creates two modules called ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "One_hot",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " and",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "code" : "Binary",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ". Each of these modules conforms to the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Hardcaml.Interface.S",
+        "type" : "InlinedCode"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "signature so they can be treated as regular Hardcaml interfaces. The",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "code" : "'a",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " parameter specifies the underlying type of the enum. ie: in",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "designing circuits, it would be ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Signal.t",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ", and in simulations, it",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "will be ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Bits.t ref",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ".",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Both variants have a similar API, differing only in their encoding as",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "a bit vector. From here on, we will demonstrate the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Binary",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " API.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The generated modules contain ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "of_enum",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " functions to transform",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "statically known enums into arbitrary desired ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "'a t",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ", so long the",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "provided ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "'a",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " satisfied the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Comb.S",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " interface. (Both ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "(module Bits)",
+        "type" : "InlinedCode"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "and ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "(module Signal)",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " shipped with Hardcaml support them)",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let x : Signal.t Hello.Binary.t =\n    Hello.Binary.of_enum (module Signal) (Foo Foo_a)\n  ;;\nval x : Signal.t Hello.Binary.t = <abstr>\n# let y = Hello.Binary.Of_signal.of_enum (Bar Bar_a)\nval y : Signal.t Hello.Binary.t = <abstr>\n\n# let z = Hello.Binary.Of_signal.(==:) x y\nval z : Signal.t = (const (width 1) (value 0b0))\n\n# let a = Hello.Binary.Of_signal.is x (Foo Foo_a)\nval a : Signal.t = (const (width 1) (value 0b1))",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "You get several enum-specific features for defining circuits in the",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "regular Signal-like API, notably the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "match_",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " function for",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "multiplexing on the enum value. Note that this differs from ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "mux",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " which",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "creates a multiplexer that returns a value of the type enum.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "let non_exhaustive_matching =\n  let open Signal in\n  Hello.Binary.match_\n    (module Signal)\n    (* [default] needs to be specified when the match cases are not\n       exhaustive. *)\n    ~default:(zero 10)\n    x\n    [ Foo Foo_a, ones 10\n    ; Bar Bar_a, zero 10\n    ]\n;;\n\n(* [Of_signal.match_] is similar to [match_], except it does not\n   require an explicit a first class module argument. *)\nlet exhaustive_matching =\n  let open Signal in\n  Hello.Binary.Of_signal.match_\n    y\n    [ Foo Foo_a, of_unsigned_int ~width:10 55\n    ; Foo Foo_b, of_unsigned_int ~width:10 44\n    ; Bar Bar_a, of_unsigned_int ~width:10 66\n    ; Bar Bar_b, of_unsigned_int ~width:10 88\n    ; Bar Bar_c, of_unsigned_int ~width:10 77\n    ]\n;;",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "match_",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " function is also defined for the Always API, which makes",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "it really clean to write \"pattern-match\"-like applications on enums.",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "Similar to ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Of_signal.match_",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ", there is an optional ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "default",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " argument",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "for non-exhaustive matches.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# Hello.Binary.Of_always.match_ ;;\n- : ?default:Always.t list ->\n    Signal.t Hello.Binary.t ->\n    (Hello.Enum.t * Always.t list) list -> Always.t\n= <fun>\n\n# let exhaustive_matching case =\n    Hello.Binary.Of_always.match_\n      ~default:[\n        (* The default case here. *)\n      ]\n      case\n      [ Foo Foo_a, [\n          (* Some logic here. *)\n        ];\n        Bar Bar_a, [\n          (* Even more logic here. *)\n        ]\n      ]\n  ;;\nval exhaustive_matching : Signal.t Hello.Binary.t -> Always.t = <fun>",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "This generated enum module implements the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Hardcaml.Interface.S",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ", so you",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "get access to the various convenient functions defined in ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Of_signal",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ",",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "code" : "Of_always",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " and ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Of_bits",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ". For example:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "(* A multiplexer that returns value of the enum, as opposed to\n   multiplexing on the enum itself (as match_ does). *)\nlet multiplexers =\n  let selector = Signal.input \"selector\" 2 in\n  Hello.Binary.Of_signal.(mux\n    selector\n    [ of_enum (Foo Foo_a)\n    ; of_enum (Bar Bar_a)\n    ; of_enum (Bar Bar_b)\n    ; of_enum (Foo Foo_b)\n    ]\n  )\n;;\n\nlet clock = Signal.input \"clock\" 1\nlet spec = Signal.Reg_spec.create ~clock ()\n\n(* Registers that stores the enum value. *)\nlet registers : Signal.t Hello.Binary.t =\n  let wires = Hello.Binary.Of_signal.wires () in\n\n  Hello.Binary.Of_signal.reg ~enable:Signal.vdd spec wires\n;;\n\n(* Usage in always blocks. You can (almost) seamlessly assign values\n   to them. *)\nlet _ : Always.t list =\n  let cond = Signal.input \"cond\" 1 in\n  let var = Hello.Binary.Of_always.reg ~enable:Signal.vdd spec in\n  let assign_hello = Hello.Binary.Of_always.assign in\n  Always.[\n    if_ cond [\n      assign_hello var (Hello.Binary.Of_signal.of_enum (Foo Foo_a))\n    ] @@ [\n      (* This doesn't make much sense in practice. This is just\n         to the [value] function.\n      *)\n      assign_hello var (Hello.Binary.Of_always.value var)\n    ]\n  ]\n;;",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The generated enum can even be used as part of regular Hardcaml",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "interfaces! This makes Hardcaml Enums powerful, since the circuit",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "interfaces can simply use it without nasty type conversions. For",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "example:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "module I = struct\n  type 'a t =\n    { clock : 'a\n    ; clear : 'a\n    ; hello : 'a Hello.Binary.t\n    }\n  [@@deriving hardcaml]\nend",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "For more advanced usage, you can convert to the underlying ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Bits.t",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " or",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "code" : "Signal.t",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " value. The ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "of_raw",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " function only performs checks on",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "widths. It is the caller's responsibility to ensure that when it's",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "code" : "One_hot",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ", the provided raw value is always one hot; when it's",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "code" : "Binary",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ", the provided raw value should be strictly less than the",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "number of possible cases.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let this_will_raise_due_to_a_width_mismatch =\n    Hello.Binary.Of_signal.of_raw (Signal.of_unsigned_int ~width:30 10)\n  ;;\nException: (Failure \"Width mismatch. Enum expects 3, but obtained 30\").\n\n# let this_is_valid_and_fine =\n    Hello.Binary.Of_signal.of_raw (Signal.of_unsigned_int ~width:3 0)\n  ;;\nval this_is_valid_and_fine : Signal.t Hello.Binary.t = <abstr>\n\n# let this_is_undefined_and_will_not_raise =\n    Hello.Binary.Of_signal.of_raw (Signal.of_unsigned_int ~width:3 6)\n  ;;\nval this_is_undefined_and_will_not_raise : Signal.t Hello.Binary.t = <abstr>",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Enums are well supported in simulations too! Let's make a little state",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "machine that increments or decrements a counter based on an enum's input",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "value. The module simulation will also output the previous clock",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "cycle's enum input.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "module O = struct\n  type 'a t =\n    { counter : 'a [@bits 32]\n    ; prev_hello : 'a Hello.Binary.t [@rtlmangle true]\n    }\n  [@@deriving hardcaml]\nend",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let create (i : _ I.t) =\n    let open Signal in\n    let spec = Signal.Reg_spec.create ~clock:i.clock ~clear:i.clear () in\n    let ctr = Always.Variable.reg spec ~width:32 ~enable:vdd in\n    let prev_hello = Hello.Binary.Of_always.reg ~enable:vdd spec in\n    Always.(compile [\n      Hello.Binary.Of_always.match_ i.hello [\n        (* Foo increments! *)\n        Foo Foo_a, [ ctr <-- (ctr.value +:. 1); ];\n        Foo Foo_b, [ ctr <-- (ctr.value +:. 2); ];\n\n        (* Bar decrements.. *)\n        Bar Bar_a, [ ctr <-- (ctr.value -:. 1) ];\n        Bar Bar_b, [ ctr <-- (ctr.value -:. 2) ];\n        Bar Bar_c, [ ctr <-- (ctr.value -:. 3) ];\n      ];\n\n      Hello.Binary.Of_always.assign prev_hello i.hello;\n    ]);\n    { O.\n      counter = ctr.value\n    ; prev_hello = Hello.Binary.Of_always.value prev_hello\n    }\n  ;;\nval create : Signal.t I.t -> Signal.t O.t = <fun>",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Since these enum files are not simply of type ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Bits.t ref",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ", we need to",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "opt for special APIs for getting/setting them in simulations:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# Hello.Binary.sim_set\n- : Bits.t ref Hello.Binary.t -> Hello.Enum.t -> unit = <fun>\n# Hello.Binary.sim_set_raw\n- : Bits.t ref Hello.Binary.t -> Bits.t -> unit = <fun>\n# Hello.Binary.sim_get\n- : Bits.t ref Hello.Binary.t -> Hello.Enum.t Or_error.t = <fun>\n# Hello.Binary.sim_get_raw\n- : Bits.t ref Hello.Binary.t -> Bits.t = <fun>",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Using those functions, we can drive a Hardcaml Cyclesim.t similar to",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "regular Hardcaml sims:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "let sim =\n    let module Sim = Cyclesim.With_interface(I)(O) in\n    Sim.create create\n\nlet inputs = Cyclesim.inputs sim\nlet outputs = Cyclesim.outputs sim\n\nlet print () =\n  let prev_hello = Or_error.ok_exn (Hello.Binary.sim_get outputs.prev_hello) in\n  let counter = Bits.to_unsigned_int !(outputs.counter) in\n  Stdio.print_s [%message\n    (prev_hello : Hello.Enum.t)\n    (counter : int)\n  ]",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# Hello.Binary.sim_set inputs.hello (Foo Foo_a);\n- : unit = ()\n# Cyclesim.cycle sim;\n- : unit = ()\n# print ();\n((prev_hello (Foo Foo_a)) (counter 1))\n- : unit = ()\n# Hello.Binary.sim_set inputs.hello (Foo Foo_b);\n- : unit = ()\n# Cyclesim.cycle sim;\n- : unit = ()\n# print ();\n((prev_hello (Foo Foo_b)) (counter 3))\n- : unit = ()\n# Hello.Binary.sim_set inputs.hello (Bar Bar_a);\n- : unit = ()\n# Cyclesim.cycle sim;\n- : unit = ()\n# Cyclesim.cycle sim;\n- : unit = ()\n# print ();\n((prev_hello (Bar Bar_a)) (counter 1))\n- : unit = ()",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    } ],
+    "lastModifiedTime" : 1750709443886,
+    "tocItem" : {
+      "chapterTitle" : "Using Interfaces",
+      "pageTitle" : "5.5 Enums in Hardcaml",
+      "pageMeta" : {
+        "parent" : [ "using_interfaces.mdx" ],
+        "title" : [ "5.5 Enums in Hardcaml" ],
+        "uuid" : [ "27e11f7a-7f68-33eb-4afb-7aa13b7785bd" ]
+      },
+      "dirName" : "using-interfaces",
+      "fileName" : "enums_in_hardcaml",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

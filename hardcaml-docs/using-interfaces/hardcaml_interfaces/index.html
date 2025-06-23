@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 5.1 Hardcaml Interfaces</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>Abstractly Hardcaml interfaces are made up of a polymorphic type with a single polymorphic variable and a set of functions which can manipulate that type In addition they contain a field which specifies for each contained in a string name which can be used to label the value and the bit width of it s representation as hardware Most commonly an interface will be of type where it will represent a set of Hardcaml signals within a hardware design or where it is used to interact with a Hardcaml simulator Interfaces actually contain many more convenience functions though they can all be derived from the functions shown above Record interfaces The most common form of interface is a record Below we implement an interface by hand for a record containing two fields and In the value we gave a 32 bit width to foo and a 1 bit width to bar Note also the names we specified were not the same as the record field name although much of the time it makes most sense if they are To reduce the amount of boilerplate code to write we provide a ppx called which can generate the above code for you from the type definition The type definition derives Hardcaml and various annotations exist to customize the names and widths of each field Note that each field in the record must be of type Some simple setup is required to use Hardcaml interfaces namely installing and adding it as a preprocessor in the build system Using interfaces Lets say defined the outputs of some hardware module Generally we would write something like Instead we can write Now lets say we have built a simulator over this module and want access to the output ports Other types of interface There are various use cases for interfaces where the outer type is not a record are one example and will be described later s are another where we abstract a Hardcaml value by restricting access to it s implementation They often come with a specialized API for manipulating the value type a t @@deriving sexp_of val iter a t &gt; f a &gt; unit &gt; unit val iter2 a t &gt; b t &gt; f a &gt; b &gt; unit &gt; unit val map a t &gt; f a &gt; b &gt; b t val map2 a t &gt; b t &gt; f a &gt; b &gt; c &gt; c t val to_list a t &gt; a list val port_names_and_widths string * int t a a t Signal t t Bits t t foo bar module Explicit_interface_record_implementation struct module T struct type a t foo a bar a @@deriving equal localize sexp_of let map t f foo f t foo bar f t bar let map2 s t f foo f s foo t foo bar f s bar t bar let iter t f f t foo f t bar let iter2 s t f f s foo t foo f s bar t bar let to_list t t foo t bar let port_names_and_widths foo FOO_FOO 32 bar BAR_BAR 1 end include T include Hardcaml Interface Make T end port_names_and_widths ppx_hardcaml a module Simple_interface struct type a t foo a @bits 32 * Where a bit width is not specified it defaults to 1 * bar a @@deriving hardcaml end ppx_hardcaml Simple_interface let circuit Circuit create_exn name test output foo outputs foo output bar outputs bar let circuit Circuit create_exn name test Simple_interface map2 port_names outputs f Signal output |&gt; to_list let outputs Simple_interface map port_names f Cyclesim out_port sim Enums Scalar</p>
+</article>
+
+<article>
+<header><h1>Complete Interface API</h1></header>
+<p>Map and Iter and functions are provided with up to 5 arguments Zip Between 2 and 5 interfaces can be combined using zip The result is an interface of tuples Fold and Scan passes each field of an interface along with an accumulator to the given function For example we can compute the total width of an interface as follows note this is also provided by the value is similar except it returns an interface The function returns the next value of the accumulator and the value of the result field We can compute the offset of each field in an interface as follows note this is also provide by the function and are also defined Association lists and Tags An interface can be converted to and from an association list with and Note that we do not choose to use the string name of fields as keys rather we define and abstract type and value which uniquely represent each fields in an interface Lists of Interfaces and convert between a list of interfaces and interface of lists The signatures should make the operation clearer Misc functions and provide direct access to the names and widths of fields in an interface sets each field to the value Of_signal and Of_bits Both these modules implement the signature They provides functions specialized to the types and respectively Converting from Ints and set each field to the given value by converting from a given integer and also convert from integers but each field may be specified individually Pack and Unpack flattens an interface into a single vector by concatenating all the fields reverses the operation Muxs selects between 2 interfaces and selects between an arbitrary number of interfaces Selection and all work the same way as the corresponding versions on normal signals expect they operate on all fields at once Of_signal specifics A few further functions apply only to the type creates an interface of wires performs wire assignment should be an interface of wires and apply registers or a pipeline of registers to the given interface and create the input and output ports for circuits will apply names to each field based on and a given prefix and suffix Of_always operates on interfaces of type converts an interface of variables to an interface of signals assigns variables with values It results in an always statement and define interfaces of variables will apply names to each field based on and a given prefix and suffix map iter # map5 a Simple_interface t &gt; b Simple_interface t &gt; c Simple_interface t &gt; d Simple_interface t &gt; e Simple_interface t &gt; f a &gt; b &gt; c &gt; d &gt; e &gt; f &gt; f Simple_interface t &lt;fun&gt; # zip port_names port_widths string * int Simple_interface t foo foo 32 bar bar 1 fold f # fold port_widths init 0 f fun total width &gt; total width int 33 sum_of_port_widths scan f # scan port_widths init 0 f fun acc width &gt; acc width acc int Simple_interface t foo 0 bar 32 offsets fold2 scan2 to_alist of_alist tag tags of_interface_list to_interface_list # of_interface_list a Simple_interface t list &gt; a list Simple_interface t &lt;fun&gt; # to_interface_list a list Simple_interface t &gt; a Simple_interface t list &lt;fun&gt; port_names string t port_widths int t const c c Interface Comb Signal t t Bits t t of_unsigned_int of_signed_int of_int_trunc of_unsigned_ints of_signed_ints of_ints_trunc pack unpack mux2 mux priority_select priority_select_with_default onehot_select Signal t t wires assign a b a reg pipeline inputs outputs apply_names port_names Of_always Always Variable t t value assign reg wire apply_names port_names</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Abstractly, Hardcaml",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Interface/index.html",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "text" : "interfaces",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "text" : " are",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "made up of a polymorphic type (with a single polymorphic variable) and a set of functions",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "which can manipulate that type:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "",
+      "snippet" : "type 'a t [@@deriving sexp_of]\n\nval iter : 'a t -> f:('a -> unit) -> unit\nval iter2 : 'a t -> 'b t -> f:('a -> 'b -> unit) -> unit\nval map : 'a t -> f:('a -> 'b) -> 'b t\nval map2 : 'a t -> 'b t -> f:('a -> 'b -> 'c) -> 'c t\nval to_list : 'a t -> 'a list",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "In addition they contain a field",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "",
+      "snippet" : "val port_names_and_widths : (string * int) t",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "which specifies for each ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "'a",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " contained in ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "'a t",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " a string name which can be used to label",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "the value and the bit width of it's representation as hardware.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Most commonly an interface will be of type ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Signal.t t",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " where it will represent a set of",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "Hardcaml signals within a hardware design, or ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Bits.t t",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " where it is used to interact with",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "a Hardcaml simulator.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Interfaces actually contain many more convenience functions though they can all be",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "derived from the functions shown above.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "record-interfaces",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Record interfaces",
+      "type" : "SubHeading"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The most common form of interface is a record. Below we implement an interface by hand for",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "a record containing two fields: ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "foo",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " and ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "bar",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ".",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "module Explicit_interface_record_implementation = struct\n  module T = struct\n    type 'a t =\n      { foo : 'a\n      ; bar : 'a\n      }\n    [@@deriving equal ~localize, sexp_of]\n\n    let map t ~f = { foo = f t.foo; bar = f t.bar }\n    let map2 s t ~f = { foo = f s.foo t.foo; bar = f s.bar t.bar }\n    let iter t ~f = f t.foo; f t.bar\n    let iter2 s t ~f = f s.foo t.foo; f s.bar t.bar\n    let to_list t = [ t.foo; t.bar ]\n\n    let port_names_and_widths = { foo = \"FOO_FOO\", 32; bar = \"BAR_BAR\", 1 }\n  end\n  include T\n  include Hardcaml.Interface.Make(T)\nend;;",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "In the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "port_names_and_widths",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " value we gave a 32 bit width to foo, and a 1 bit width to",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "bar. Note also the names we specified were not the same as the record field name (although",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "much of the time it makes most sense if they are).",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "To reduce the amount of boilerplate code to write we provide a ppx called",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "url" : "https://github.com/janestreet/ppx_hardcaml",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "code" : "ppx_hardcaml",
+          "type" : "InlinedCode"
+        } ]
+      }, {
+        "text" : " which can generate the above",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "code for you from the type definition.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The type definition derives Hardcaml and various annotations exist to customize the names",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "and widths of each field.  Note that each field in the record must be of type ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "'a",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ".",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "module Simple_interface = struct\n  type 'a t =\n    { foo : 'a [@bits 32]\n    ; (* Where a bit width is not specified, it defaults to 1. *)\n      bar : 'a\n    }\n  [@@deriving hardcaml]\nend",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Some simple ",
+        "type" : "SimpleText"
+      }, {
+        "url" : "/hardcaml-docs/introduction/installing_with_opam",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "text" : "setup",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "text" : " is required to use Hardcaml interfaces,",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "namely installing ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "ppx_hardcaml",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " and adding it as a preprocessor in the build system.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "using-interfaces",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Using interfaces",
+      "type" : "SubHeading"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Lets say ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Simple_interface",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " defined the outputs of some hardware module. Generally we",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "would write something like:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "let circuit =\n    Circuit.create_exn ~name:\"test\"\n      [ output \"foo\" outputs.foo; output \"bar\" outputs.bar ]",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Instead we can write:",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "let circuit =\n    Circuit.create_exn ~name:\"test\"\n      Simple_interface.(map2 port_names outputs ~f:Signal.output |> to_list)",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Now lets say we have built a simulator over this module and want access to the output ports",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "let outputs =\n    Simple_interface.(map port_names ~f:(Cyclesim.out_port sim ))",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "id" : "other-types-of-interface",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Other types of interface",
+      "type" : "SubHeading"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "There are various use cases for interfaces where the outer type is not a record. ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Enums",
+        "type" : "InlinedCode"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "are one example and will be described later.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "code" : "Scalar",
+        "type" : "InlinedCode"
+      }, {
+        "text" : "s are another where we abstract a Hardcaml value by restricting access to it's",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "implementation. They often come with a specialized API for manipulating the value.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "complete-interface-api",
+      "additionalIds" : [ ],
+      "title" : "Complete Interface API",
+      "type" : "Section",
+      "content" : [ {
+        "id" : "complete-interface-api-map-and-iter",
+        "additionalIds" : [ "map-and-iter" ],
+        "level" : 2,
+        "title" : "Map and Iter",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "map",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "iter",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " functions are provided with up to 5 arguments.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# map5\n- : 'a Simple_interface.t ->\n    'b Simple_interface.t ->\n    'c Simple_interface.t ->\n    'd Simple_interface.t ->\n    'e Simple_interface.t ->\n    f:('a -> 'b -> 'c -> 'd -> 'e -> 'f) -> 'f Simple_interface.t\n= <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "complete-interface-api-zip",
+        "additionalIds" : [ "zip" ],
+        "level" : 2,
+        "title" : "Zip",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Between 2 and 5 interfaces can be combined using zip.  The result is an interface of tuples.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# zip port_names port_widths\n- : (string * int) Simple_interface.t = {foo = (\"foo\", 32); bar = (\"bar\", 1)}",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "complete-interface-api-fold-and-scan",
+        "additionalIds" : [ "fold-and-scan" ],
+        "level" : 2,
+        "title" : "Fold and Scan",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "fold",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " passes each field of an interface, along with an accumulator, to the given function",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "f",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". For example we can compute the total width of an interface as follows.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# fold port_widths ~init:0 ~f:(fun total width -> total + width)\n- : int = 33",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "(note - this is also provided by the value ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "sum_of_port_widths",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ").",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "scan",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is similar except it returns an interface. The function ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "f",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " returns the next value",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "of the accumulator and the value of the result field. We can compute the offset of each",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "field in an interface as follows.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# scan port_widths ~init:0 ~f:(fun acc width -> acc + width, acc)\n- : int Simple_interface.t = {foo = 0; bar = 32}",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "(note - this is also provide by the function ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "offsets",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ").",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "fold2",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "scan2",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " are also defined.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "complete-interface-api-association-lists-and-tags",
+        "additionalIds" : [ "association-lists-and-tags" ],
+        "level" : 2,
+        "title" : "Association lists and Tags",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "An interface can be converted to and from an association list with ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "to_alist",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "of_alist",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". Note that we do not choose to use the string name of fields as keys - rather",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "we define and abstract type ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "tag",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and value ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "tags",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " which uniquely represent each fields in",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "an interface.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "complete-interface-api-lists-of-interfaces",
+        "additionalIds" : [ "lists-of-interfaces" ],
+        "level" : 2,
+        "title" : "Lists of Interfaces",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "of_interface_list",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "to_interface_list",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " convert between a list of interfaces and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "interface of lists.  The signatures should make the operation clearer.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# of_interface_list\n- : 'a Simple_interface.t list -> 'a list Simple_interface.t = <fun>\n# to_interface_list\n- : 'a list Simple_interface.t -> 'a Simple_interface.t list = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "complete-interface-api-misc-functions",
+        "additionalIds" : [ "misc-functions" ],
+        "level" : 2,
+        "title" : "Misc functions",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "port_names  : string t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "port_widths : int t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " provide direct access to the names and widths of fields in an interface.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "const c",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " sets each field to the value ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "c",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "complete-interface-api-of_signal-and-of_bits",
+        "additionalIds" : [ "of_signal-and-of_bits" ],
+        "level" : 2,
+        "title" : "Of_signal and Of_bits",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Both these modules implement the signature ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Interface.Comb",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". They provides functions",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "specialized to the types ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Signal.t t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Bits.t t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " respectively.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "complete-interface-api-of_signal-and-of_bits-converting-from-ints",
+        "additionalIds" : [ "converting-from-ints" ],
+        "level" : 3,
+        "title" : "Converting from Ints",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "of_unsigned_int",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "of_signed_int",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "of_int_trunc",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " set each field to the given value by",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "converting from a given integer.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "of_unsigned_ints",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "of_signed_ints",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "of_ints_trunc",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " also convert from integers but each",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "field may be specified individually.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "complete-interface-api-of_signal-and-of_bits-pack-and-unpack",
+        "additionalIds" : [ "pack-and-unpack" ],
+        "level" : 3,
+        "title" : "Pack and Unpack",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "pack",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " flattens an interface into a single vector by concatenating all the fields.  ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "unpack",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " reverses the operation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "complete-interface-api-of_signal-and-of_bits-muxs",
+        "additionalIds" : [ "muxs" ],
+        "level" : 3,
+        "title" : "Muxs",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "mux2",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " selects between 2 interfaces and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "mux",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " selects between an arbitrary number of interfaces.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "complete-interface-api-of_signal-and-of_bits-selection",
+        "additionalIds" : [ "selection" ],
+        "level" : 3,
+        "title" : "Selection",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "priority_select",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "priority_select_with_default",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "onehot_select",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " all work the same",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "way as the corresponding versions on normal signals, expect they operate on all fields at",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "once.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "complete-interface-api-of_signal-and-of_bits-of_signal-specifics",
+        "additionalIds" : [ "of_signal-specifics" ],
+        "level" : 3,
+        "title" : "Of_signal specifics",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A few further functions apply only to the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Signal.t t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " type.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "wires",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " creates an interface of wires.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "assign a b",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " performs wire assignment - ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "a",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " should be an interface of wires.",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "reg",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "pipeline",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " apply registers (or a pipeline of registers) to the given interface.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "inputs",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "outputs",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " create the input and output ports for circuits.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "apply_names",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " will apply names to each field based on ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "port_names",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and a given prefix and suffix.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "complete-interface-api-of_always",
+        "additionalIds" : [ "of_always" ],
+        "level" : 2,
+        "title" : "Of_always",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "Of_always",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " operates on interfaces of type ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Always.Variable.t t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "value",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " converts an interface of variables to an interface of signals.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "assign",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " assigns variables with values. It results in an always statement.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "reg",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "wire",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " define interfaces of variables.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "apply_names",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " will apply names to each field based on ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "port_names",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and a given prefix and suffix.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709444068,
+    "tocItem" : {
+      "chapterTitle" : "Using Interfaces",
+      "pageTitle" : "5.1 Hardcaml Interfaces",
+      "pageMeta" : {
+        "parent" : [ "using_interfaces.mdx" ],
+        "title" : [ "5.1 Hardcaml Interfaces" ],
+        "uuid" : [ "f97124f7-069b-32e1-d699-d81b87d34d3b" ]
+      },
+      "dirName" : "using-interfaces",
+      "fileName" : "hardcaml_interfaces",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Complete Interface API",
+        "id" : "complete-interface-api",
+        "customAnchorId" : "complete-interface-api"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

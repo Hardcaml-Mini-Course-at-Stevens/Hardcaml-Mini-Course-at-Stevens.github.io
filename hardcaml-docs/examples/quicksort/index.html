@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 6.6 Quicksort</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<header><h1>Quicksort</h1></header>
+<p>Quicksort is a sorting algorithm that takes operations in the average case and in the worst case It is a divide and conquer algorithm that recursively sorts the input in two halves It works as follows Pick some element from the array Call this the pivot Partition the array such into three parts All values less than or equal to the pivot are placed before the pivot and all elements greater than the pivot are placed after it Given this we can be sure pivot is now actually in the correct position in the array Recursively apply quicksort to the left and right partitions Quicksort describes a family of algorithms with some different trade offs in particular the actual partitioning algorithm and how to choose the pivot can affect its performance on different input arrays Lets start with the most basic implementation It is a very elegant implementation and indeed runs with the expected average and worst case complexities However it also allocates lots of intermediate lists and the amount of space needed will be proportional to the runtime i e in worst case it could require space We want to implement this on in hardware so we d like to get a better bound on the space requirements In place sorting Lomuto described a partitioning scheme that is both simple and can run in place i e it modifies the input array rather than allocating new arrays So we ve fixed the space problem except we haven t quite Although we no longer allocate new data arrays we still use stack space for the recursive calls The stack usage will follow the average and worst case complexity of the algorithm depending on the input data ie it could be up to Why does this happen It s because of the choice of pivot For best performance the pivot should evenly split the input array but we cannot guarantee that If the input was already sorted we hit a degenerate case where the left partition is all the elements except the pivot and the right partition is empty Thus we need to recurse times to quicksort it Sedgewick s log stack space trick Now we come to the implementation we want to use for hardware This reorganizes the recursion so it only uses stack space on the smaller partition It doesn t change the amount of computation we do it will still be but we can ensure we use only stack space O N log N O N^2 &lt; pivot pivot &gt; pivot let rec qsort a match a with | &gt; | x xs &gt; let left List filter xs f fun y &gt; y &lt; x in let right List filter xs f fun y &gt; y &gt; x in List concat qsort left x qsort right O N^2 let swap a i j let tmp a i in a i &lt; a j a j &lt; tmp let partition a low high let pivot a high in let i ref low in for j low to high 1 do if a j &lt; pivot then swap a i j Int incr i done swap a i high i let rec qsort a low high if not low &gt; high || low &lt; 0 then let p partition a high low in qsort a low high p 1 qsort a low p 1 high let qsort a qsort a low 0 high Array length a 1 O N N O N^2 log N let rec qsort a low high let low high ref low ref high in while low &lt; high do let pivot partition a low low high high in if pivot low &lt; high pivot then qsort a low low high pivot 1 low pivot 1 else qsort a low pivot 1 high high high pivot 1 done let qsort a qsort a low 0 high Array length a 1</p>
+</article>
+
+<article>
+<header><h1>Hardware Design</h1></header>
+<p>Top level architecture The top level design consists of a RAM and the sorting core The RAM is implementation with a Simple Dual Port RAM This means it has one read and one write port The sorting core requires read write access to the RAM as does the external interface in order to load the data and read back the result Thus the ports are multiplexed This basically means the RAM should not be accessed by the external interface while the core is running We show a little trick for designs like this where the outputs of both modules are also required as inputs to the modules You can predefine the outputs of one model as wires and then use them in the other module We can then assign the wires when we create the second module This trick extends to as many modules as needed | _______ | ______||__| |__||_____ _|| | RAM | ||_ | | |_______| | | | _______ | | | | | |_____| QSORT |_____| | | |_______| module type Config sig val log_size int val data_size int end module Make_with_memory Config Config struct open Config module Qsort Make Config module I struct type a t clocking a Types Clocking t start a write_enable a write_address a @bits log_size write_data a @bits data_size read_address a @bits log_size read_enable a @@deriving hardcaml rtlmangle false end module O struct type a t done_ a data_out a @bits data_size @@deriving hardcaml rtlmangle false end let create scope i _ I t let%hw Qsort O Of_signal qsort Qsort O Of_signal wires in let%hw ram Ram create name my_ram collision_mode Read_before_write size Int pow 2 log_size write_ports | write_clock i clocking clock write_enable i write_enable | qsort write_enable write_address mux2 i write_enable i write_address qsort write_address write_data mux2 i write_enable i write_data qsort write_data | read_ports | read_clock i clocking clock read_enable i read_enable | qsort read_enable read_address mux2 i read_enable i read_address qsort read_address | 0 in Qsort O Of_signal assign qsort Qsort create scope Qsort I clocking i clocking start i start read_data ram O done_ qsort done_ data_out ram end</p>
+</article>
+
+<article>
+<header><h1>Quicksort Design</h1></header>
+<p>There are three main things the core must implement The partitioning process Control of recursion and iterations Management of the stack In addition there is a complexity with regard to the RAM Because we are instantiating a proper synthesizable RAM the read is synchronous this means we get the read data one cycle after providing the read address We will need to account for this latency in our state machine Call stack The hardware outputs the current top most entry of the stack via This is of type and contains the low and high indices of the current range along with the pivot index We allow writes to the stack in two different ways has a valid associated with each field If the is high then we overwrite that field in the current entry Alternatively if is set then we write all fields regardless of to the next entry on the stack and increment the pointer Note when setting the of the memory which implements this If is set we decrement the pointer effectively popping the top entry of the stack Lastly we provide which indicates if the stack is empty Sorting core Interface The interface to the core is very simple Apart from and it just consists of a signal a indicator and the connections to the read and write ports of the RAM States The sorting algorithm is implemented as state machine The states and are involved with recursion and iteration control and perform the partitioning process The state machine begins in the state We ll discuss each state in detail below Where appropriate we shall refer to the Sedgewick implementation of qsort along with the Lomuto partitioning code shown again below with line numbers Start When is raised the initial search range is set at the top of the call stack and we transition to Qsort This controls the main while loop in the algorithm at line 22 If the test passes we move state and start the partitioning process Note we also set the RAM read address to the pivot point This is done so the pivot is available to be read in the next state When the test fails we end the qsort function but only at this level of the stack Hence the state machine will pop the and repeat the test If the becomes empty we are done and go back to the state Pivot In this state we simply read the pivot value we will use for partitioning It corresponds to line 8 We move directly to state We set the read address to the start of the partition so we can begin streaming through it in the following states Partition Swap and Swap_pivot The states and implement the for loop on lines 10 to 15 If the test against the pivot at line 11 passes we immediately write the value at into while setting the read address to and transition to writes the value at into completing the swap It transitions back immediately to state Note we read and write the value at address in the RAM on the same cycle This will write the new value while reading the old value which is what we require for the swap operation This behavior is due to setting the collision mode of the RAM to On line 10 we see the iteration goes up to The state machine actually goes up to The reason for this is we need to swap the values at high and as on line 16 A key point here is the test on line 11 it will never be true for the value at as it is the pivot value When we reach high we will transition to to complete the final swap operation Within we also now know the correct index of the pivot so write it into the current entry It will be used for later iterations Update_range and recurse These states implement lines 23 to 30 They find the smaller of the two partitions and recurse into it In terms of hardware we need to do two things hence the two states In we are dealing with line 27 or 30 This is effectively replacing the current entry with the larger range A small subtlety here is by updating the entry we actually change the test for the smaller partition hence we must store it in a register for use in In we push the smaller partition into the There is a little extra logic to do with setting the signal We avoid doing so if the pivot would become negative or larger than the array size This is because our register values high low pivot etc cannot represent numbers outside the range It is safe to do this if we did recurse and extended the size of the registers we would immediately fail the test on line 22 anyway Implementation Below is the complete implementation for reference Testing We will not go through the testbench in detail for this example suffice it to say it looks very similar to previous examples perform a reset load the input data start the core and wait for it to complete and then read back the results and check they are correct There is an interesting bit of code to do with debugging though While the core is running we optionally execute a function called on every clock cycle This uses a feature of that allows us to lookup internal values within a simulation In particular we look up the high low and pivot values and the complete memory contents every time the state machine enters the We then dump those values When debugging the state machine this was very useful in tracking down problems The output looks likes this This data made it much much easier to find points where things started to go awry module Partition struct type a t low a @bits log_size high a @bits log_size pivot a @bits log_size @@deriving hardcaml rtlmangle false end module Partition_with_valids With_valid Fields Make Partition module Call_stack struct module I struct type a t clocking a Clocking t partition a Partition_with_valids t push a pop a @@deriving hardcaml rtlmangle false end module O struct type a t partition a Partition t is_empty a @@deriving hardcaml rtlmangle false end let create scope i _ I t _ O t let addr_bits Int ceil_log2 log_size 1 in let%hw top wire addr_bits in let top_next top 1 in let top_prev top 1 in top &lt; Clocking reg i clocking enable i push | i pop mux2 i push top_next top_prev let create_stack With_valid valid value multiport_memory log_size 1 write_ports | write_clock i clocking clock write_enable i push | valid write_address mux2 i push top_next top write_data value | read_addresses | top | 0 in O partition Partition map i partition f create_stack is_empty top 0 end O partition _ Partition t I partition valid top I push valid top mux2 write_address I pop top O is_empty clock clear start done_ module I struct type a t clocking a Types Clocking t start a read_data a @bits data_size @@deriving hardcaml rtlmangle false end module O struct type a t done_ a write_enable a write_address a @bits log_size write_data a @bits data_size read_address a @bits log_size read_enable a @@deriving hardcaml rtlmangle false end Qsort Update_range Recurse Pivot Partition Swap Swap_pivot Start module State struct type t | Start | Qsort | Pivot | Partition | Swap | Swap_pivot | Update_range | Recurse @@deriving sexp_of compare localize enumerate end 1 let swap a i j 2 let tmp a i in 3 a i &lt; a j 4 a j &lt; tmp 5 6 7 let partition a low high 8 let pivot a high in 9 let i ref low in 10 for j low to high 1 do 11 if a j &lt; pivot 12 then 13 swap a i j 14 int incr i 15 done 16 swap a i high 17 i 18 19 20 let rec qsort a low high 21 let low high ref low ref high in 22 while low &lt; high do 23 let pivot partition a low low high high in 24 if pivot low &lt; high pivot 25 then 26 qsort a low low high pivot 1 27 low pivot 1 28 else 29 qsort a low pivot 1 high high 30 high pivot 1 31 done 32 start Qsort Pivot Call_stack Call_stack Start Partition Partition Swap j i i Swap Swap i j Partition i Read_before_write high 1 high i high Swap_pivot Swap_pivot Call_stack Update_range Call_stack Call_stack Recurse Recurse Call_stack push 0 array size 1 let create scope i _ I t let%hw Always State_machine sm Always State_machine create module State Clocking to_spec i clocking in let%hw Partition_with_valids Of_always write_partition Partition_with_valids Of_always wire zero in let%hw_var push Always Variable wire default gnd in let%hw_var pop Always Variable wire default gnd in let%hw Call_stack O Of_signal stack Call_stack create scope Call_stack I clocking i clocking partition Partition_with_valids Of_always value write_partition push push value pop pop value in let read_address Always Variable wire default zero log_size in let write_address Always Variable wire default zero log_size in let write_enable Always Variable wire default gnd in let write_data Always Variable wire default zero data_size in let%hw_var i_idx Clocking Var reg i clocking width log_size in let%hw_var j_idx Clocking Var reg i clocking width log_size in let%hw_var j_idx_prev Clocking Var reg i clocking width log_size in let%hw_var pivot_at Clocking Var reg i clocking width log_size in let%hw_var tmp Clocking Var reg i clocking width log_size in let init_j_idx Always proc j_idx &lt; stack partition low 1 j_idx_prev &lt; stack partition low in let incr_j_idx Always proc j_idx &lt; j_idx value 1 j_idx_prev &lt; j_idx value in let swap_write address data Always proc write_address &lt; address write_data &lt; data write_enable &lt; vdd in let partition_search_update raddr Always proc read_address &lt; j_idx value incr_j_idx when_ j_idx_prev value stack partition high read_address &lt; raddr swap_write i_idx value pivot_at value sm set_next Swap_pivot in let left_partition_is_smaller stack partition pivot stack partition low &lt; stack partition high stack partition pivot in let left_partition_is_smaller_reg Clocking Var reg i clocking width 1 in let read_enable Clocking Var reg i clocking width 1 in Always compile proc Partition map write_partition f fun valid value _ &gt; valid &lt; gnd |&gt; Partition to_list pop &lt; gnd sm switch Start when_ i start Partition_with_valids Of_always assign write_partition low valid vdd value zero log_size high valid vdd value ones log_size pivot valid vdd value zero log_size read_enable &lt; vdd sm set_next Qsort Qsort if_ stack partition low &lt; stack partition high i_idx &lt; stack partition low init_j_idx read_address &lt; stack partition high sm set_next Pivot if_ stack is_empty read_enable &lt; gnd sm set_next Start pop &lt; vdd Pivot read_address &lt; stack partition low pivot_at &lt; i read_data sm set_next Partition Partition if_ i read_data &lt; pivot_at value swap_write i_idx value i read_data read_address &lt; i_idx value i_idx &lt; i_idx value 1 sm set_next Swap partition_search_update i_idx value Swap swap_write j_idx_prev value i read_data read_address &lt; j_idx value sm set_next Partition partition_search_update i_idx value Swap_pivot swap_write stack partition high i read_data write_partition pivot value &lt; i_idx value write_partition pivot valid &lt; vdd sm set_next Update_range Update_range left_partition_is_smaller_reg &lt; left_partition_is_smaller if_ left_partition_is_smaller tmp &lt; stack partition low write_partition low value &lt; stack partition pivot 1 write_partition low valid &lt; vdd tmp &lt; stack partition high write_partition high value &lt; stack partition pivot 1 write_partition high valid &lt; vdd sm set_next Recurse Recurse if_ left_partition_is_smaller_reg value write_partition low value &lt; tmp value write_partition high value &lt; stack partition pivot 1 write_partition low value &lt; stack partition pivot 1 write_partition high value &lt; tmp value push &lt; mux2 left_partition_is_smaller_reg value stack partition pivot &lt;&gt; 0 stack partition pivot &lt;&gt; 1 sm set_next Qsort O done_ sm is Start write_enable write_enable value write_address write_address value write_data write_data value read_address read_address value read_enable read_enable value module Debug struct type t ram Cyclesim Memory t low Cyclesim Node t pivot Cyclesim Node t high Cyclesim Node t sm Cyclesim Reg t pivot_state int let create sim let ram Cyclesim lookup_mem_by_name sim my_ram |&gt; Option value_exn in let low Cyclesim lookup_node_by_name sim stack$low |&gt; Option value_exn in let pivot Cyclesim lookup_node_by_name sim stack$pivot |&gt; Option value_exn in let high Cyclesim lookup_node_by_name sim stack$high |&gt; Option value_exn in let sm Cyclesim lookup_reg_by_name sim sm |&gt; Option value_exn in let pivot_state _ List findi_exn Qsort Qsort State all f fun _ &gt; function | Pivot &gt; true | _ &gt; false in ram low pivot high sm pivot_state let update_on_cycle t if Cyclesim Reg to_int t sm t pivot_state then let ram Cyclesim Memory read_all t ram in let ram Array map ram f Bits to_unsigned_int in let low Cyclesim Node to_int t low in let pivot Cyclesim Node to_int t pivot in let high Cyclesim Node to_int t high in Stdio print_s %message _ low pivot high int * int * int ram int array end let run_qsort sim Sim t debug let inputs Cyclesim inputs sim in let outputs Cyclesim outputs sim in inputs start vdd Cyclesim cycle sim inputs start gnd let timeout ref 0 in while not Bits to_bool outputs done_ &amp;&amp; timeout &lt; 300 do Option iter debug f Debug update_on_cycle Cyclesim cycle sim Int incr timeout done Debug update_on_cycle Cyclesim Pivot state 0 0 15 ram 9 4 7 6 5 5 0 3 1 4 8 6 4 0 2 3 0 0 3 ram 0 1 0 2 3 5 9 3 4 4 8 6 4 7 6 5 0 3 2 ram 0 1 0 2 3 5 9 3 4 4 8 6 4 7 6 5 1 0 2 ram 0 1 0 2 3 5 9 3 4 4 8 6 4 7 6 5 5 4 15 ram 0 0 1 2 3 5 9 3 4 4 8 6 4 7 6 5 5 0 8 ram 0 0 1 2 3 3 4 4 4 5 8 6 9 7 6 5 7 6 8 ram 0 0 1 2 3 3 4 4 4 5 8 6 9 7 6 5 10 9 15 ram 0 0 1 2 3 3 4 4 4 5 8 6 9 7 6 5 11 10 15 ram 0 0 1 2 3 3 4 4 4 5 5 6 9 7 6 8 11 14 13 ram 0 0 1 2 3 3 4 4 4 5 5 6 7 6 8 9 12 11 13 ram 0 0 1 2 3 3 4 4 4 5 5 6 7 6 8 9</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "id" : "quicksort",
+      "additionalIds" : [ ],
+      "title" : "Quicksort",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Quicksort is a sorting algorithm that takes ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "O(N log N)",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " operations in the average case",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "O(N^2)",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " in the worst case. It is a divide and conquer algorithm that recursively sorts",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the input in two halves. It works as follows:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 1,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Pick some element from the array.  Call this the pivot.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Partition the array such into three parts.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : "[ <= pivot][pivot][ >= pivot]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "All values less than or equal to the pivot are placed before the pivot and all elements",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "greater than the pivot are placed after it. Given this we can be sure pivot is now",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "actually in the correct position in the array.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 3,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Recursively apply quicksort to the left and right partitions.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Quicksort describes a family of algorithms with some different trade offs - in particular",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the actual partitioning algorithm and how to choose the pivot can affect its performance on",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "different input arrays.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Lets start with the most basic implementation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let rec qsort a =\n  match a with\n  | [] -> []\n  | x :: xs ->\n    let left = List.filter xs ~f:(fun y -> y <= x) in\n    let right = List.filter xs ~f:(fun y -> y > x) in\n    List.concat [ qsort left; [ x ]; qsort right ]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "It is a very elegant implementation and indeed runs with the expected average and worst",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "case complexities. However, it also allocates lots of intermediate lists and the amount of",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "space needed will be proportional to the runtime i.e. in worst case it could require ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "O(N^2)",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "space.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We want to implement this on in hardware so we'd like to get a better bound on the space",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "requirements.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "quicksort-in-place-sorting",
+        "additionalIds" : [ "in-place-sorting" ],
+        "level" : 2,
+        "title" : "In place sorting",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Lomuto described a partitioning scheme that is both simple and can run in place i.e. it",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "modifies the input array rather than allocating new arrays.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let swap a i j =\n  let tmp = a.(i) in\n  a.(i) <- a.(j);\n  a.(j) <- tmp\n;;\n\nlet partition a ~low ~high =\n  let pivot = a.(high) in\n  let i = ref low in\n  for j = low to high - 1 do\n    if a.(j) < pivot\n    then (\n      swap a !i j;\n      Int.incr i)\n  done;\n  swap a !i high;\n  !i\n;;\n\nlet rec qsort a ~low ~high =\n  if not (low >= high || low < 0)\n  then (\n    let p = partition a ~high ~low in\n    qsort a ~low ~high:(p - 1);\n    qsort a ~low:(p + 1) ~high)\n;;\n\nlet qsort a = qsort a ~low:0 ~high:(Array.length a - 1)",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "So we've fixed the space problem ... except we haven't quite. Although we no longer",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "allocate new data arrays, we still use stack space for the recursive calls. The stack",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "usage will follow the average and worst case complexity of the algorithm depending on the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "input data ie it could be up to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "O(N)",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Why does this happen? It's because of the choice of pivot. For best performance the pivot",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "should evenly split the input array but we cannot guarantee that. If the input was already",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "sorted we hit a degenerate case where the left partition is all the elements except the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "pivot and the right partition is empty. Thus we need to recurse ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "N",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " times to quicksort",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "it.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "quicksort-sedgewicks-log-stack-space-trick",
+        "additionalIds" : [ "sedgewicks-log-stack-space-trick" ],
+        "level" : 2,
+        "title" : "Sedgewick's log stack space trick",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Now we come to the implementation we want to use for hardware. This reorganizes the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "recursion so it only uses stack space on the smaller partition. It doesn't change the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "amount of computation we do - it will still be ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "O(N^2)",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " - but we can ensure we use only",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "log N",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " stack space.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let rec qsort a ~low ~high =\n  let low, high = ref low, ref high in\n  while !low < !high do\n    let pivot = partition a ~low:!low ~high:!high in\n    if pivot - !low < !high - pivot\n    then (\n      qsort a ~low:!low ~high:(pivot - 1);\n      low := pivot + 1)\n    else (\n      qsort a ~low:(pivot + 1) ~high:!high;\n      high := pivot - 1)\n  done\n;;\n\nlet qsort a = qsort a ~low:0 ~high:(Array.length a - 1)",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "hardware-design",
+      "additionalIds" : [ ],
+      "title" : "Hardware Design",
+      "type" : "Section",
+      "content" : [ {
+        "id" : "hardware-design-top-level-architecture",
+        "additionalIds" : [ "top-level-architecture" ],
+        "level" : 2,
+        "title" : "Top level architecture",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "",
+        "snippet" : "      |\\   _______   |\\\n______||__|       |__||_____\n     _||  |  RAM  |  ||_\n    | |/  |_______|  |/ |\n    |      _______      |\n    |     |       |     |\n    |_____| QSORT |_____|\n          |       |\n          |_______|",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The top level design consists of a RAM and the sorting core.  The RAM is implementation",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "with a Simple Dual Port RAM.  This means it has one read and one write port.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The sorting core requires read/write access to the RAM as does the external interface in",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "order to load the data and read back the result. Thus the ports are multiplexed. This",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "basically means the RAM should not be accessed by the external interface while the core is",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "running.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module type Config = sig\n  val log_size : int\n  val data_size : int\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Make_with_memory (Config : Config) = struct\n  open Config\n  module Qsort = Make (Config)\n\n  module I = struct\n    type 'a t =\n      { clocking : 'a Types.Clocking.t\n      ; start : 'a\n      ; write_enable : 'a\n      ; write_address : 'a [@bits log_size]\n      ; write_data : 'a [@bits data_size]\n      ; read_address : 'a [@bits log_size]\n      ; read_enable : 'a\n      }\n    [@@deriving hardcaml ~rtlmangle:false]\n  end\n\n  module O = struct\n    type 'a t =\n      { done_ : 'a\n      ; data_out : 'a [@bits data_size]\n      }\n    [@@deriving hardcaml ~rtlmangle:false]\n  end\n\n  let create scope (i : _ I.t) =\n    let%hw.Qsort.O.Of_signal qsort = Qsort.O.Of_signal.wires () in\n    let%hw ram =\n      (Ram.create\n         ~name:\"my_ram\"\n         ~collision_mode:Read_before_write\n         ~size:(Int.pow 2 log_size)\n         ~write_ports:\n           [| { write_clock = i.clocking.clock\n              ; write_enable = i.write_enable |: qsort.write_enable\n              ; write_address = mux2 i.write_enable i.write_address qsort.write_address\n              ; write_data = mux2 i.write_enable i.write_data qsort.write_data\n              }\n           |]\n         ~read_ports:\n           [| { read_clock = i.clocking.clock\n              ; read_enable = i.read_enable |: qsort.read_enable\n              ; read_address = mux2 i.read_enable i.read_address qsort.read_address\n              }\n           |]\n         ()).(0)\n    in\n    Qsort.O.Of_signal.assign\n      qsort\n      (Qsort.create\n         scope\n         { Qsort.I.clocking = i.clocking; start = i.start; read_data = ram });\n    { O.done_ = qsort.done_; data_out = ram }\n  ;;\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We show a little trick for designs like this where the outputs of both modules are also",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "required as inputs to the modules. You can predefine the outputs of one model as wires and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "then use them in the other module. We can then assign the wires when we create the second",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "module. This trick extends to as many modules as needed.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "quicksort-design",
+      "additionalIds" : [ ],
+      "title" : "Quicksort Design",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "There are three main things the core must implement:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 1,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "The partitioning process.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Control of recursion and iterations.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Management of the stack.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In addition there is a complexity with regard to the RAM. Because we are instantiating a",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "proper synthesizable RAM the read is synchronous - this means we get the read data one",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "cycle after providing the read address. We will need to account for this latency in our",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "state machine.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "quicksort-design-call-stack",
+        "additionalIds" : [ "call-stack" ],
+        "level" : 2,
+        "title" : "Call stack",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Partition = struct\n  type 'a t =\n    { low : 'a [@bits log_size]\n    ; high : 'a [@bits log_size]\n    ; pivot : 'a [@bits log_size]\n    }\n  [@@deriving hardcaml ~rtlmangle:false]\nend\n\nmodule Partition_with_valids = With_valid.Fields.Make (Partition)",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Call_stack = struct\n  module I = struct\n    type 'a t =\n      { clocking : 'a Clocking.t\n      ; partition : 'a Partition_with_valids.t\n      ; push : 'a\n      ; pop : 'a\n      }\n    [@@deriving hardcaml ~rtlmangle:false]\n  end\n\n  module O = struct\n    type 'a t =\n      { partition : 'a Partition.t\n      ; is_empty : 'a\n      }\n    [@@deriving hardcaml ~rtlmangle:false]\n  end\n\n  let create scope (i : _ I.t) : _ O.t =\n    let addr_bits = Int.ceil_log2 (log_size + 1) in\n    let%hw top = wire addr_bits in\n    let top_next = top +:. 1 in\n    let top_prev = top -:. 1 in\n    top\n    <-- Clocking.reg\n          i.clocking\n          ~enable:(i.push |: i.pop)\n          (mux2 i.push top_next top_prev);\n    let create_stack { With_valid.valid; value } =\n      (multiport_memory\n         (log_size + 1)\n         ~write_ports:\n           [| { write_clock = i.clocking.clock\n              ; write_enable = i.push |: valid\n              ; write_address = mux2 i.push top_next top\n              ; write_data = value\n              }\n           |]\n         ~read_addresses:[| top |]).(0)\n    in\n    { O.partition = Partition.map i.partition ~f:create_stack; is_empty = top ==:. 0 }\n  ;;\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The hardware outputs the current top most entry of the stack via ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "O.partition",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". This is of",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "type ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "_ Partition.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and contains the low and high indices of the current range along with",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the pivot index.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We allow writes to the stack in two different ways. ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "I.partition",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " has a valid associated",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "with each field. If the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "valid",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is high then we overwrite that field in the current ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "top",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "entry. Alternatively, if ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "I.push",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is set then we write all fields (regardless of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "valid",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ")",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "to the next entry on the stack and increment the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "top",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " pointer. Note ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "mux2",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " when setting",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "write_address",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " of the memory which implements this.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "If ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "I.pop",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is set we decrement the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "top",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " pointer effectively popping the top entry",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "of the stack.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Lastly we provide ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "O.is_empty",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " which indicates if the stack is empty.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "quicksort-design-sorting-core",
+        "additionalIds" : [ "sorting-core" ],
+        "level" : 2,
+        "title" : "Sorting core",
+        "type" : "SubHeading"
+      }, {
+        "id" : "quicksort-design-sorting-core-interface",
+        "additionalIds" : [ "interface" ],
+        "level" : 3,
+        "title" : "Interface",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The interface to the core is very simple. Apart from ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "clock",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "clear",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " it just consists of a",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "start",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " signal, a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "done_",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " indicator and the connections to the read and write ports of the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "RAM.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module I = struct\n  type 'a t =\n    { clocking : 'a Types.Clocking.t\n    ; start : 'a\n    ; read_data : 'a [@bits data_size]\n    }\n  [@@deriving hardcaml ~rtlmangle:false]\nend\n\nmodule O = struct\n  type 'a t =\n    { done_ : 'a\n    ; write_enable : 'a\n    ; write_address : 'a [@bits log_size]\n    ; write_data : 'a [@bits data_size]\n    ; read_address : 'a [@bits log_size]\n    ; read_enable : 'a\n    }\n  [@@deriving hardcaml ~rtlmangle:false]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "quicksort-design-sorting-core-states",
+        "additionalIds" : [ "states" ],
+        "level" : 3,
+        "title" : "States",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The sorting algorithm is implemented as state machine. The states ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Qsort",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Update_range",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Recurse",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " are involved with recursion and iteration control. ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Pivot",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Partition",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ",",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Swap",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Swap_pivot",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " perform the partitioning process. The state machine begins in the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Start",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " state.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module State = struct\n  type t =\n    | Start\n    | Qsort\n    | Pivot\n    | Partition\n    | Swap\n    | Swap_pivot\n    | Update_range\n    | Recurse\n  [@@deriving sexp_of, compare ~localize, enumerate]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We'll discuss each state in detail below. Where appropriate we shall refer to the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "Sedgewick implementation of qsort along with the Lomuto partitioning code shown again",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "below with line numbers.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : " 1  let swap a i j =\n 2    let tmp = a.(i) in\n 3    a.(i) <- a.(j);\n 4    a.(j) <- tmp\n 5  ;;\n 6\n 7  let partition a ~low ~high =\n 8    let pivot = a.(high) in\n 9    let i = ref low in\n10    for j = low to high - 1 do\n11      if a.(j) < pivot\n12      then (\n13        swap a !i j;\n14        int.incr i)\n15    done;\n16    swap a !i high;\n17    !i\n18  ;;\n19\n20  let rec qsort a ~low ~high =\n21    let low, high = ref low, ref high in\n22    while !low < !high do\n23      let pivot = partition a ~low:!low ~high:!high in\n24      if pivot - !low < !high - pivot\n25      then (\n26        qsort a ~low:!low ~high:(pivot - 1);\n27        low := pivot + 1)\n28      else (\n29        qsort a ~low:(pivot + 1) ~high:!high;\n30        high := pivot - 1)\n31    done\n32  ;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "quicksort-design-sorting-core-states-start",
+        "additionalIds" : [ "start" ],
+        "level" : 4,
+        "title" : "Start",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "When ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "start",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is raised the initial search range is set at the top of the call stack and we",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "transition to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Qsort",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "quicksort-design-sorting-core-states-qsort",
+        "additionalIds" : [ "qsort" ],
+        "level" : 4,
+        "title" : "Qsort",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This controls the main while loop in the algorithm at line 22.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "If the test passes we move state ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Pivot",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and start the partitioning process. Note we also set",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the RAM read address to the pivot point. This is done so the pivot is available to be read",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "in the next state.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "When the test fails we end the qsort function - but only at this level of the stack. Hence",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the state machine will pop the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Call_stack",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and repeat the test. If the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Call_stack",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "becomes empty we are done and go back to the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Start",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " state.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "quicksort-design-sorting-core-states-pivot",
+        "additionalIds" : [ "pivot" ],
+        "level" : 4,
+        "title" : "Pivot",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In this state we simply read the pivot value we will use for partitioning. It corresponds",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "to line 8. We move directly to state ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Partition",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". We set the read address to the start of",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the partition so we can begin streaming through it in the following states.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "quicksort-design-sorting-core-states-partition-swap-and-swap_pivot",
+        "additionalIds" : [ "partition-swap-and-swap_pivot" ],
+        "level" : 4,
+        "title" : "Partition, Swap, and Swap_pivot.",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The states ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Partition",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Swap",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " implement the for loop on lines 10 to 15. If the test",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "against the pivot at line 11 passes we immediately write the value at ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "j",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " into ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "i",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " while",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "setting the read address to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "i",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and transition to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Swap",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Swap",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " writes the value at",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "i",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " into ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "j",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " completing the swap. It transitions back immediately to state ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Partition",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Note we read and write the value at address ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "i",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " in the RAM on the same cycle. This will",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "write the new value while reading the old value (which is what we require for the swap",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "operation). This behavior is due to setting the collision mode of the RAM to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Read_before_write",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "On line 10 we see the iteration goes up to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "high-1",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". The state machine actually goes up to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "high",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". The reason for this is we need to swap the values at high and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "i",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " as on line 16. A",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "key point here is the test on line 11 - it will never be true for the value at ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "high",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " as",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "it is the pivot value. When we reach high we will transition to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Swap_pivot",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " to complete",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the final swap operation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Within ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Swap_pivot",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " we also now know the correct index of the pivot so write it into the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "current ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Call_stack",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " entry. It will be used for later iterations.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "quicksort-design-sorting-core-states-update_range-and-recurse",
+        "additionalIds" : [ "update_range-and-recurse" ],
+        "level" : 4,
+        "title" : "Update_range and recurse",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "These states implement lines 23 to 30. They find the smaller of the two partitions and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "recurse into it.  In terms of hardware we need to do two things, hence the two states.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Update_range",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " we are dealing with line 27 or 30. This is effectively replacing the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "current ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Call_stack",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " entry with the larger range. A small subtlety here is by updating the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Call_stack",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " entry we actually change the test for the smaller partition - hence we must",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "store it in a register for use in ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Recurse",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Recurse",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " we push the smaller partition into the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Call_stack",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". There is a little extra",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "logic to do with setting the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "push",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " signal. We avoid doing so if the pivot would become",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "negative or larger than the array size. This is because our register values (high, low,",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "pivot etc) cannot represent numbers outside the range ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "0 .. array size-1",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". It is safe to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "do this - if we did recurse (and extended the size of the registers) we would immediately",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "fail the test on line 22 anyway.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "quicksort-design-sorting-core-implementation",
+        "additionalIds" : [ "implementation" ],
+        "level" : 3,
+        "title" : "Implementation",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Below is the complete implementation for reference.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let create scope (i : _ I.t) =\n  let%hw.Always.State_machine sm =\n    Always.State_machine.create (module State) (Clocking.to_spec i.clocking)\n  in\n  let%hw.Partition_with_valids.Of_always write_partition =\n    Partition_with_valids.Of_always.wire zero\n  in\n  let%hw_var push = Always.Variable.wire ~default:gnd () in\n  let%hw_var pop = Always.Variable.wire ~default:gnd () in\n  let%hw.Call_stack.O.Of_signal stack =\n    Call_stack.create\n      scope\n      { Call_stack.I.clocking = i.clocking\n      ; partition = Partition_with_valids.Of_always.value write_partition\n      ; push = push.value\n      ; pop = pop.value\n      }\n  in\n  let read_address = Always.Variable.wire ~default:(zero log_size) () in\n  let write_address = Always.Variable.wire ~default:(zero log_size) () in\n  let write_enable = Always.Variable.wire ~default:gnd () in\n  let write_data = Always.Variable.wire ~default:(zero data_size) () in\n  let%hw_var i_idx = Clocking.Var.reg i.clocking ~width:log_size in\n  let%hw_var j_idx = Clocking.Var.reg i.clocking ~width:log_size in\n  let%hw_var j_idx_prev = Clocking.Var.reg i.clocking ~width:log_size in\n  let%hw_var pivot_at = Clocking.Var.reg i.clocking ~width:log_size in\n  let%hw_var tmp = Clocking.Var.reg i.clocking ~width:log_size in\n  let init_j_idx =\n    Always.(\n      proc [ j_idx <-- stack.partition.low +:. 1; j_idx_prev <-- stack.partition.low ])\n  in\n  let incr_j_idx =\n    Always.(proc [ j_idx <-- j_idx.value +:. 1; j_idx_prev <-- j_idx.value ])\n  in\n  let swap_write address data =\n    Always.(\n      proc [ write_address <-- address; write_data <-- data; write_enable <-- vdd ])\n  in\n  let partition_search_update raddr =\n    Always.(\n      proc\n        [ read_address <-- j_idx.value\n        ; incr_j_idx\n        ; when_\n            (j_idx_prev.value ==: stack.partition.high)\n            [ read_address <-- raddr\n            ; swap_write i_idx.value pivot_at.value\n            ; sm.set_next Swap_pivot\n            ]\n        ])\n  in\n  let left_partition_is_smaller =\n    stack.partition.pivot -: stack.partition.low\n    <: stack.partition.high -: stack.partition.pivot\n  in\n  let left_partition_is_smaller_reg = Clocking.Var.reg i.clocking ~width:1 in\n  let read_enable = Clocking.Var.reg i.clocking ~width:1 in\n  Always.(\n    compile\n      [ proc\n          (Partition.map write_partition ~f:(fun { valid; value = _ } -> valid <-- gnd)\n           |> Partition.to_list)\n      ; pop <-- gnd\n      ; sm.switch\n          [ ( Start\n            , [ when_\n                  i.start\n                  [ Partition_with_valids.Of_always.assign\n                      write_partition\n                      { low = { valid = vdd; value = zero log_size }\n                      ; high = { valid = vdd; value = ones log_size }\n                      ; pivot = { valid = vdd; value = zero log_size }\n                      }\n                  ; read_enable <-- vdd\n                  ; sm.set_next Qsort\n                  ]\n              ] )\n          ; ( Qsort\n            , [ if_\n                  (stack.partition.low <: stack.partition.high)\n                  [ i_idx <-- stack.partition.low\n                  ; init_j_idx\n                  ; read_address <-- stack.partition.high\n                  ; sm.set_next Pivot\n                  ]\n                  [ if_\n                      stack.is_empty\n                      [ read_enable <-- gnd; sm.set_next Start ]\n                      [ pop <-- vdd ]\n                  ]\n              ] )\n          ; ( Pivot\n            , [ read_address <-- stack.partition.low\n              ; pivot_at <-- i.read_data\n              ; sm.set_next Partition\n              ] )\n          ; ( Partition\n            , [ if_\n                  (i.read_data <: pivot_at.value)\n                  [ swap_write i_idx.value i.read_data\n                  ; read_address <-- i_idx.value\n                  ; i_idx <-- i_idx.value +:. 1\n                  ; sm.set_next Swap\n                  ]\n                  [ partition_search_update i_idx.value ]\n              ] )\n          ; ( Swap\n            , [ swap_write j_idx_prev.value i.read_data\n              ; read_address <-- j_idx.value\n              ; sm.set_next Partition\n              ; partition_search_update i_idx.value\n              ] )\n          ; ( Swap_pivot\n            , [ swap_write stack.partition.high i.read_data\n              ; write_partition.pivot.value <-- i_idx.value\n              ; write_partition.pivot.valid <-- vdd\n              ; sm.set_next Update_range\n              ] )\n          ; ( Update_range\n            , [ left_partition_is_smaller_reg <-- left_partition_is_smaller\n              ; if_\n                  left_partition_is_smaller\n                  [ tmp <-- stack.partition.low\n                  ; write_partition.low.value <-- stack.partition.pivot +:. 1\n                  ; write_partition.low.valid <-- vdd\n                  ]\n                  [ tmp <-- stack.partition.high\n                  ; write_partition.high.value <-- stack.partition.pivot -:. 1\n                  ; write_partition.high.valid <-- vdd\n                  ]\n              ; sm.set_next Recurse\n              ] )\n          ; ( Recurse\n            , [ if_\n                  left_partition_is_smaller_reg.value\n                  [ write_partition.low.value <-- tmp.value\n                  ; write_partition.high.value <-- stack.partition.pivot -:. 1\n                  ]\n                  [ write_partition.low.value <-- stack.partition.pivot +:. 1\n                  ; write_partition.high.value <-- tmp.value\n                  ]\n              ; push\n                <-- mux2\n                      left_partition_is_smaller_reg.value\n                      (stack.partition.pivot <>:. 0)\n                      (stack.partition.pivot <>+. -1)\n              ; sm.set_next Qsort\n              ] )\n          ]\n      ]);\n  { O.done_ = sm.is Start\n  ; write_enable = write_enable.value\n  ; write_address = write_address.value\n  ; write_data = write_data.value\n  ; read_address = read_address.value\n  ; read_enable = read_enable.value\n  }\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "quicksort-design-testing",
+        "additionalIds" : [ "testing" ],
+        "level" : 2,
+        "title" : "Testing",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We will not go through the testbench in detail for this example - suffice it to say it",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "looks very similar to previous examples - perform a reset, load the input data, start the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "core and wait for it to complete and then read back the results and check they are",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "correct.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "There is an interesting bit of code to do with debugging though.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Debug = struct\n  type t =\n    { ram : Cyclesim.Memory.t\n    ; low : Cyclesim.Node.t\n    ; pivot : Cyclesim.Node.t\n    ; high : Cyclesim.Node.t\n    ; sm : Cyclesim.Reg.t\n    ; pivot_state : int\n    }\n\n  let create sim =\n    let ram = Cyclesim.lookup_mem_by_name sim \"my_ram\" |> Option.value_exn in\n    let low = Cyclesim.lookup_node_by_name sim \"stack$low\" |> Option.value_exn in\n    let pivot = Cyclesim.lookup_node_by_name sim \"stack$pivot\" |> Option.value_exn in\n    let high = Cyclesim.lookup_node_by_name sim \"stack$high\" |> Option.value_exn in\n    let sm = Cyclesim.lookup_reg_by_name sim \"sm\" |> Option.value_exn in\n    let pivot_state, _ =\n      List.findi_exn Qsort.Qsort.State.all ~f:(fun _ -> function\n        | Pivot -> true\n        | _ -> false)\n    in\n    { ram; low; pivot; high; sm; pivot_state }\n  ;;\n\n  let update_on_cycle t =\n    if Cyclesim.Reg.to_int t.sm = t.pivot_state\n    then (\n      let ram = Cyclesim.Memory.read_all t.ram in\n      let ram = Array.map ram ~f:Bits.to_unsigned_int in\n      let low = Cyclesim.Node.to_int t.low in\n      let pivot = Cyclesim.Node.to_int t.pivot in\n      let high = Cyclesim.Node.to_int t.high in\n      Stdio.print_s\n        [%message \"\" ~_:((low, pivot, high) : int * int * int) (ram : int array)])\n  ;;\nend\n\nlet run_qsort (sim : Sim.t) debug =\n  let inputs = Cyclesim.inputs sim in\n  let outputs = Cyclesim.outputs sim in\n  inputs.start := vdd;\n  Cyclesim.cycle sim;\n  inputs.start := gnd;\n  let timeout = ref 0 in\n  while (not (Bits.to_bool !(outputs.done_))) && !timeout < 300 do\n    Option.iter debug ~f:Debug.update_on_cycle;\n    Cyclesim.cycle sim;\n    Int.incr timeout\n  done\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "While the core is running we (optionally) execute a function called",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Debug.update_on_cycle",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " on every clock cycle. This uses a feature of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Cyclesim",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " that",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "allows us to lookup internal values within a simulation. In particular, we look up the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "high, low and pivot values and the complete memory contents every time the state machine",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "enters the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Pivot state",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We then dump those values. When debugging the state machine this was very useful in",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "tracking down problems.  The output looks likes this:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : "((0 0 15) (ram (9 4 7 6 5 5 0 3 1 4 8 6 4 0 2 3)))\n((0 0 3) (ram (0 1 0 2 3 5 9 3 4 4 8 6 4 7 6 5)))\n((0 3 2) (ram (0 1 0 2 3 5 9 3 4 4 8 6 4 7 6 5)))\n((1 0 2) (ram (0 1 0 2 3 5 9 3 4 4 8 6 4 7 6 5)))\n((5 4 15) (ram (0 0 1 2 3 5 9 3 4 4 8 6 4 7 6 5)))\n((5 0 8) (ram (0 0 1 2 3 3 4 4 4 5 8 6 9 7 6 5)))\n((7 6 8) (ram (0 0 1 2 3 3 4 4 4 5 8 6 9 7 6 5)))\n((10 9 15) (ram (0 0 1 2 3 3 4 4 4 5 8 6 9 7 6 5)))\n((11 10 15) (ram (0 0 1 2 3 3 4 4 4 5 5 6 9 7 6 8)))\n((11 14 13) (ram (0 0 1 2 3 3 4 4 4 5 5 6 7 6 8 9)))\n((12 11 13) (ram (0 0 1 2 3 3 4 4 4 5 5 6 7 6 8 9)))",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This data made it much, much easier to find points where things started to go awry.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709442979,
+    "tocItem" : {
+      "chapterTitle" : "Examples",
+      "pageTitle" : "6.6 Quicksort",
+      "pageMeta" : {
+        "parent" : [ "examples.mdx" ],
+        "title" : [ "6.6 Quicksort" ],
+        "uuid" : [ "3d4d99d8-9e5a-3cfb-204c-0eba57ef2956" ]
+      },
+      "dirName" : "examples",
+      "fileName" : "quicksort",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Quicksort",
+        "id" : "quicksort",
+        "customAnchorId" : "quicksort"
+      }, {
+        "title" : "Hardware Design",
+        "id" : "hardware-design",
+        "customAnchorId" : "hardware-design"
+      }, {
+        "title" : "Quicksort Design",
+        "id" : "quicksort-design",
+        "customAnchorId" : "quicksort-design"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 2.4 RTL Generation</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>You can convert a Hardcaml to either Verilog or VHDL The following is a trivial example We also provide basic Systemverilog support the generated RTL is basically the same as Verilog mode except we use the Systemverilog reserved words to correctly perform name mangling Circuit let circuit Circuit create_exn name test output b input a 1 # let Rtl print Verilog circuit module test a b input a output b assign b a endmodule # let Rtl print Vhdl circuit library ieee use ieee std_logic_1164 all use ieee numeric_std all entity test is port a in std_logic b out std_logic end entity architecture rtl of test is begin b &lt; a end architecture</p>
+</article>
+
+<article>
+<header><h1>Instantiations</h1></header>
+<p>In Hardcaml a corresponds to a single module in Verilog or entity in VHDL s can contain s which reference some other module or entity within a hierarchical design The Hardcaml RTL generator is aware of the s and can recursively generate the RTL for them if they are provided in a A stores the implementation of s that can be instantiated It is essentially a mapping between circuit names and their implementations If a circuit implementation is not found in the Hardcaml will still generate the appropriate instantiation in the RTL output This allows for integration with external modules such as vendor IP that will be added later in the design flow or for module hierarchy to be described in Hardcaml Circuit Circuit Instantiation Instantiation Circuit_database Circuit_database Circuit Circuit_database</p>
+</article>
+
+<article>
+<header><h1>Printing Circuits</h1></header>
+<p>The function will output the RTL for a design and optionally any instantiations defined through a to It is simple and usable in most cases Rtl print Circuit_database stdout</p>
+</article>
+
+<article>
+<header><h1>Low Level Control</h1></header>
+<p>The RTL API provides a way for the Hardcaml to discover the full design hierarchy and for the user to decide how to write it out It starts with the function the which contains implementations of found within the hierarchy of s Some configuration options for how to generate the RTL either Verilog or VHDL a list of top level circuits to generate returns a list which represent the design hierarchy Hierarchical circuits The returned by can be factored into the full design hierarchy using and These both return a list of s which contain functions to output a module implementation It should be noted that if a module is instantiated in multiple places it will still only be represented once within the design hierarchy Blackboxes A blackbox is a module or entity which describes just its interface and does not include its implementation The RTL generator can create black boxes if required Outputting RTL Hardcaml predefines 4 ways to output the hierarchy of modules generate full rtl for everything recursively This is the most common option and what uses only generate the given top levels and do not recuse into the hierarchy the top levels will be generated along with blackboxes for all modules in the hierarchy the top levels will be generated as blackboxes Each of these functions returns a Ropes Ropes are used by Hardcaml to generate code and are a fancy type of string All you need to know is they can be converted to a standard string with Example This creates a hierarchy where instantiates which in turn instantiates We now need to create a containing the inner circuits Now we can print the RTL for in various ways Find within the hierarchy and print that directly create # Rtl create database Circuit_database t &gt; config Rtl Config t &gt; Rtl Language t &gt; Circuit t list &gt; Rtl Hierarchical_circuits t list &lt;fun&gt; database Circuit_database Instantiations Circuit config Rtl Langauge t Circuit t list create Hierarchical_circuits Hierarchical_circuits create subcircuits top_level_circuits Circuit_instance Hierarchical_circuits full_hierarchy Rtl print top_levels_only top_levels_and_blackboxes top_levels_as_blackboxes Rope t Rope to_string let inner1 Circuit create_exn name inner1 output b input a 1 let inner2 let x input x 1 in let inst Instantiation create name inner1 inputs a x outputs b 1 in Circuit create_exn name inner2 output y Instantiation output inst b let top let s input s 1 in let inst Instantiation create name inner2 inputs x s outputs y 1 in Circuit create_exn name top output t Instantiation output inst y top inner1 inner2 Circuit_database let database Circuit_database create Circuit_database insert database inner1 Circuit_database insert database inner2 top let rtl Rtl create database Verilog top # Rtl top_levels_and_blackboxes rtl |&gt; Rope to_string |&gt; Stdio print_endline module inner1 a b input a output b endmodule module inner2 x y input x output y endmodule module top s t input s output t wire _4 wire _2 inner2 the_inner2 x s y _4 assign _2 _4 assign t _2 endmodule unit # Rtl top_levels_as_blackboxes rtl |&gt; Rope to_string |&gt; Stdio print_endline module top s t input s output t endmodule unit inner2 # let inner2 Rtl Hierarchical_circuits subcircuits rtl |&gt; List find_exn f fun sub &gt; String equal Rtl Circuit_instance module_name sub inner2 |&gt; Rtl Circuit_instance rtl |&gt; Rope to_string |&gt; Stdio print_endline module inner2 x y input x output y wire _4 wire _2 inner1 the_inner1 a x b _4 assign _2 _4 assign y _2 endmodule val inner2 unit</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "You can ",
+        "type" : "SimpleText"
+      }, {
+        "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Rtl/index.html",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "text" : "convert",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "text" : " a",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "Hardcaml ",
+        "type" : "SimpleText"
+      }, {
+        "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Circuit/index.html",
+        "isFile" : false,
+        "type" : "Link",
+        "content" : [ {
+          "code" : "Circuit",
+          "type" : "InlinedCode"
+        } ]
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "to either Verilog or VHDL.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The following is a trivial example.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "let circuit = Circuit.create_exn ~name:\"test\" [ output \"b\" (input \"a\" 1) ]",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let () = Rtl.print Verilog circuit\nmodule test (\n    a,\n    b\n);\n\n    input a;\n    output b;\n\n    assign b = a;\n\nendmodule",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let () = Rtl.print Vhdl circuit\nlibrary ieee;\nuse ieee.std_logic_1164.all;\nuse ieee.numeric_std.all;\n\nentity test is\n    port (\n        a : in std_logic;\n        b : out std_logic\n    );\nend entity;\n\narchitecture rtl of test is\n\n\nbegin\n\n    b <= a;\n\nend architecture;",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "We also provide basic Systemverilog support - the generated RTL is basically the same as",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "Verilog mode except we use the Systemverilog reserved words to correctly perform name",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "mangling.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "instantiations",
+      "additionalIds" : [ ],
+      "title" : "Instantiations",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In Hardcaml, a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Circuit",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " corresponds to a single module in Verilog or entity in",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "VHDL. ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Circuit",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s can contain ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Instantiation",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s, which reference some other module or entity",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "within a hierarchical design.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The Hardcaml RTL generator is aware of the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Instantiation",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s and can recursively generate",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the RTL for them, if they are provided in a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Circuit_database",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Circuit_database",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " stores the implementation of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Circuit",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s that can be instantiated. It",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "is essentially a mapping between circuit names and their implementations.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "If a circuit implementation is not found in the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Circuit_database",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", Hardcaml will still",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "generate the appropriate instantiation in the RTL output. This allows for integration with",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "external modules (such as vendor IP) that will be added later in the design flow or for",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "url" : "/hardcaml-docs/using-interfaces/module_hierarchies",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "module hierarchy",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " to be described in Hardcaml.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "printing-circuits",
+      "additionalIds" : [ ],
+      "title" : "Printing Circuits",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Rtl.print",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function will output the RTL for a design (and optionally any",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "instantiations defined through a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Circuit_database",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ") to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "stdout",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "It is simple and usable in most cases.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "low-level-control",
+      "additionalIds" : [ ],
+      "title" : "Low Level Control",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The RTL API provides a way for the Hardcaml to discover the full design hierarchy and for",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the user to decide how to write it out.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "It starts with the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "create",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Rtl.create\n- : ?database:Circuit_database.t ->\n    ?config:Rtl.Config.t ->\n    Rtl.Language.t -> Circuit.t list -> Rtl.Hierarchical_circuits.t list\n= <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "database",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - the ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Circuit_database",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " which contains implementations of ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Instantiations",
+              "type" : "InlinedCode"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "found within the hierarchy of ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Circuit",
+              "type" : "InlinedCode"
+            }, {
+              "text" : "s.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "config",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - Some configuration options for how to generate the RTL.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "Rtl.Langauge.t",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - either Verilog or VHDL.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "Circuit.t list",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - a list of top-level circuits to generate.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "create",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " returns a list ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hierarchical_circuits",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " which represent the design hierarchy.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "low-level-control-hierarchical-circuits",
+        "additionalIds" : [ "hierarchical-circuits" ],
+        "level" : 2,
+        "title" : "Hierarchical circuits",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hierarchical_circuits",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " returned by ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "create",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " can be factored into the full design",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "hierarchy using ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "subcircuits",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "top_level_circuits",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". These both return a list of",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Circuit_instance",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s which contain functions to output a module implementation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "It should be noted that if a module is instantiated in multiple places it will still only",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "be represented once within the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hierarchical_circuits",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " design hierarchy.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "low-level-control-blackboxes",
+        "additionalIds" : [ "blackboxes" ],
+        "level" : 2,
+        "title" : "Blackboxes",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A blackbox is a module or entity which describes just its interface and does not include",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "its implementation. The RTL generator can create black boxes if required.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "low-level-control-outputting-rtl",
+        "additionalIds" : [ "outputting-rtl" ],
+        "level" : 2,
+        "title" : "Outputting RTL",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Hardcaml predefines 4 ways to output the hierarchy of modules.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "full_hierarchy",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - generate full rtl for everything, recursively. This is the most common",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "option and what ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Rtl.print",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " uses.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "top_levels_only",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - only generate the given top levels and do not recuse into the",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "hierarchy.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "top_levels_and_blackboxes",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - the top levels will be generated along with blackboxes for",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "all modules in the hierarchy.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "top_levels_as_blackboxes",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - the top levels will be generated as blackboxes.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Each of these functions returns a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Rope.t",
+          "type" : "InlinedCode"
+        } ]
+      }, {
+        "id" : "low-level-control-outputting-rtl-ropes",
+        "additionalIds" : [ "ropes" ],
+        "level" : 3,
+        "title" : "Ropes",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Ropes are used by Hardcaml to generate code and are a fancy type of string. All you need",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "to know is they can be converted to a standard string with ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Rope.to_string",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "low-level-control-example",
+        "additionalIds" : [ "example" ],
+        "level" : 2,
+        "title" : "Example",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let inner1 () = Circuit.create_exn ~name:\"inner1\" [output \"b\" (input \"a\" 1)]\nlet inner2 () =\n    let x = input \"x\" 1 in\n    let inst = Instantiation.create ~name:\"inner1\" ~inputs:[\"a\", x] ~outputs:[\"b\", 1] () in\n    Circuit.create_exn ~name:\"inner2\" [output \"y\" (Instantiation.output inst \"b\")]\nlet top () =\n    let s = input \"s\" 1 in\n    let inst = Instantiation.create ~name:\"inner2\" ~inputs:[\"x\", s] ~outputs:[\"y\", 1] () in\n    Circuit.create_exn ~name:\"top\" [output \"t\" (Instantiation.output inst \"y\")]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This creates a hierarchy where ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "top",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " instantiates ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "inner1",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " which in turn instantiates",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "inner2",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We now need to create a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Circuit_database",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " containing the inner circuits.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let database = Circuit_database.create ();;\nCircuit_database.insert database (inner1 ());;\nCircuit_database.insert database (inner2 ());;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Now we can print the RTL for ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "top",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " in various ways",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let rtl = Rtl.create ~database Verilog [ top() ]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Rtl.top_levels_and_blackboxes rtl |> Rope.to_string |> Stdio.print_endline;;\nmodule inner1 (\n    a,\n    b\n);\n\n    input a;\n    output b;\n\n\nendmodule\nmodule inner2 (\n    x,\n    y\n);\n\n    input x;\n    output y;\n\n\nendmodule\nmodule top (\n    s,\n    t\n);\n\n    input s;\n    output t;\n\n    wire _4;\n    wire _2;\n    inner2\n        the_inner2\n        ( .x(s),\n          .y(_4) );\n    assign _2 = _4;\n    assign t = _2;\n\nendmodule\n\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Rtl.top_levels_as_blackboxes rtl |> Rope.to_string |> Stdio.print_endline;;\nmodule top (\n    s,\n    t\n);\n\n    input s;\n    output t;\n\n\nendmodule\n\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Find ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "inner2",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " within the hierarchy and print that directly.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let inner2 = \n    Rtl.Hierarchical_circuits.subcircuits rtl\n    |> List.find_exn ~f:(fun sub -> String.equal (Rtl.Circuit_instance.module_name sub) \"inner2\") \n    |> Rtl.Circuit_instance.rtl \n    |> Rope.to_string \n    |> Stdio.print_endline\nmodule inner2 (\n    x,\n    y\n);\n\n    input x;\n    output y;\n\n    wire _4;\n    wire _2;\n    inner1\n        the_inner1\n        ( .a(x),\n          .b(_4) );\n    assign _2 = _4;\n    assign y = _2;\n\nendmodule\n\nval inner2 : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443064,
+    "tocItem" : {
+      "chapterTitle" : "Designing Circuits",
+      "pageTitle" : "2.4 RTL Generation",
+      "pageMeta" : {
+        "parent" : [ "designing_circuits.mdx" ],
+        "title" : [ "2.4 RTL Generation" ],
+        "uuid" : [ "95751f4c-28dc-38d4-445e-c07c27e160bd" ]
+      },
+      "dirName" : "designing-circuits",
+      "fileName" : "rtl_generation",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Instantiations",
+        "id" : "instantiations",
+        "customAnchorId" : "instantiations"
+      }, {
+        "title" : "Printing Circuits",
+        "id" : "printing-circuits",
+        "customAnchorId" : "printing-circuits"
+      }, {
+        "title" : "Low Level Control",
+        "id" : "low-level-control",
+        "customAnchorId" : "low-level-control"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

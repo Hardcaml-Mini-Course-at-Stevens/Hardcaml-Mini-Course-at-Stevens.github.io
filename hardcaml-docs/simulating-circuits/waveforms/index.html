@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 3.2 Waveforms</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p></p>
+</article>
+
+<article>
+<header><h1>Hardcaml Waveterm</h1></header>
+<p>The library can capture and print waveforms from Hardcaml simulations Printing results as waveforms We can make a waveform with It takes as an argument a simulator and returns a waveform and modified simulator that captures the input and output port values The waveform can be displayed with Capturing in expect tests Waveforms can be captured as expect test output are a form of automated testing where the expected output of a function or component is directly embedded in the test file and automatically compared against actual results With waveforms we get presented with a diff as we develop or change code Alongside good editor integration using expect tests can be a surprisingly convenient way to iterate on a hardware implementation Configuration options The function takes optional arguments which control the rendering of the waveform first cycle to display width and height of the waveform The height is inferred if not specified scale at which the waveform is shown negative values allowed configuration of the signals to show left or right align the name in the signal pane width of signal pane configure what signals to show and in what format Display rules The signals are shown in the order of the first matching A display rule matches one or more signal names matches the given name matches any name in the given list matches the signal name against a regular expression defined using the OCaml RE library The way the value is shown is configured by a Standard formatting includes and is like binary but renders a single bit value like the clear signal in the previous example will render as a bit if the width is 1 or X which may be Hex or Int for example otherwise takes a list of strings and looks it up based on the runtime value of the signal passes the runtime value to a function which returns the string to display is like index but looks up the the runtime value in a map Saving a waveform Hardcaml waveforms can be saved to file using It takes a waveform and file name and saves it Note that it also compresses the waveform data using which must be available will load the waveform The hardcaml waveterm library includes an executable which runs an interactive waveform viewer on saved waveform files hardcaml_waveterm Waveform create Waveform print # let test let sim Simulator create create in let waves sim Waveform create sim in testbench sim waves val test unit &gt; Waveform t &lt;fun&gt; # let waves test val waves Waveform t &lt;abstr&gt; # Waveform print waves SignalsWaves clock                 clear        incr           dout  00 01 02 00      unit let%expect_test counter let waves test Waveform print waves %expect | SignalsWaves clock                 clear        incr           dout  00 01 02 00         | expect tests Waveform print start_cycle display_width display_height wave_width display_rules signals_alignment signals_width display_rules # Waveform print display_height 10 display_rules Display_rule port_name_is dout wave_format Unsigned_int port_name_matches Re Posix compile re cl * wave_format Bit waves SignalsWaves    dout  0 1 2 0     clear        clock                     unit Display_rule t port_name_is port_name_is_one_of port_name_matches wave_format Binary Hex Unsigned_int Int Bit Bit_or X Index Custom Map Serialize marshall gzip Serialize unmarshall</p>
+</article>
+
+<article>
+<header><h1>Generating VCDs</h1></header>
+<p>VCDs are a common hardware design file format for storing waveforms They can be used with standard waveform viewers like Gtkwave To generate a VCD call the function It takes an to write to and a simulator and returns a modified simulator to use during simulation The VCD will be generated as the simulation runs The being written to may need to be flushed This VCD file can subsequently be opened with a GUI based waveform viewer tool such as Surfer or GTKWave image Vcd wrap Out_channel Out_channel let test let sim Simulator create create in let filename tmp waves vcd in let oc Out_channel open_text filename in let sim Vcd wrap oc sim in testbench sim * Closing the out channel will ensure the file is flushed to disk * Out_channel close oc Stdio print_endline Saved waves to ^ filename let%expect_test vcd generation test %expect | Saved waves to tmp waves vcd |</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "id" : "hardcaml-waveterm",
+      "additionalIds" : [ ],
+      "title" : "Hardcaml Waveterm",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "https://github.com/janestreet/hardcaml_waveterm",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "hardcaml_waveterm",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "text" : " library can",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "capture and print waveforms from Hardcaml simulations.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "hardcaml-waveterm-printing-results-as-waveforms",
+        "additionalIds" : [ "printing-results-as-waveforms" ],
+        "level" : 2,
+        "title" : "Printing results as waveforms",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We can make a waveform with",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "url" : "https://ocaml.org/p/hardcaml_waveterm/latest/doc/Hardcaml_waveterm/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "Waveform.create",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "It takes as an argument a simulator and returns a waveform and modified simulator that",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "captures the input and output port values.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The waveform can be displayed with ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Waveform.print",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let test () =\n    let sim = Simulator.create create in\n    let waves, sim = Waveform.create sim in\n    testbench sim;\n    waves\nval test : unit -> Waveform.t = <fun>\n\n# let waves = test ()\nval waves : Waveform.t = <abstr>\n# Waveform.print waves\n┌Signals────────┐┌Waves──────────────────────────────────────────────┐\n│clock          ││┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌──│\n│               ││    └───┘   └───┘   └───┘   └───┘   └───┘   └───┘  │\n│clear          ││                        ┌───────┐                  │\n│               ││────────────────────────┘       └───────────────   │\n│incr           ││        ┌───────────────┐                          │\n│               ││────────┘               └───────────────────────   │\n│               ││────────────────┬───────┬───────┬───────────────   │\n│dout           ││ 00             │01     │02     │00                │\n│               ││────────────────┴───────┴───────┴───────────────   │\n└───────────────┘└───────────────────────────────────────────────────┘\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "hardcaml-waveterm-capturing-in-expect-tests",
+        "additionalIds" : [ "capturing-in-expect-tests" ],
+        "level" : 2,
+        "title" : "Capturing in expect tests",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Waveforms can be captured as expect test output.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let%expect_test \"counter\" =\n  let waves = test ()\n  Waveform.print waves\n  [%expect {|\n┌Signals────────┐┌Waves──────────────────────────────────────────────┐\n│clock          ││┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌──│\n│               ││    └───┘   └───┘   └───┘   └───┘   └───┘   └───┘  │\n│clear          ││                        ┌───────┐                  │\n│               ││────────────────────────┘       └───────────────   │\n│incr           ││        ┌───────────────┐                          │\n│               ││────────┘               └───────────────────────   │\n│               ││────────────────┬───────┬───────┬───────────────   │\n│dout           ││ 00             │01     │02     │00                │\n│               ││────────────────┴───────┴───────┴───────────────   │\n│               ││                                                   │\n└───────────────┘└───────────────────────────────────────────────────┘\n  |}]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "expect tests",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " are a form of automated testing where the expected output of a function or",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "component is directly embedded in the test file and automatically compared against actual",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "results. With waveforms we get presented with a diff as we develop or change code.",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "Alongside good editor integration using expect tests can be a surprisingly convenient way",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "to iterate on a hardware implementation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "hardcaml-waveterm-configuration-options",
+        "additionalIds" : [ "configuration-options" ],
+        "level" : 2,
+        "title" : "Configuration options",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Waveform.print",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function takes optional arguments which control the rendering of the waveform.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "start_cycle",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " first cycle to display.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "display_width",
+              "type" : "InlinedCode"
+            }, {
+              "text" : ", ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "display_height",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " width and height of the waveform. The height is",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "inferred if not specified.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "wave_width",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " scale at which the waveform is shown (negative values allowed).",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "display_rules",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " configuration of the signals to show.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "signals_alignment",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " left or right align the name in the signal pane.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "signals_width",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " width of signal pane.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "display_rules",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " configure what signals to show, and in what format.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "id" : "hardcaml-waveterm-display-rules",
+        "additionalIds" : [ "display-rules" ],
+        "level" : 2,
+        "title" : "Display rules",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Waveform.print\n    ~display_height:10\n    ~display_rules:\n      Display_rule.[ port_name_is \"dout\" ~wave_format:Unsigned_int\n                   ; port_name_matches Re.Posix.(compile (re \"cl.*\")) ~wave_format:Bit ]\n    waves\n┌Signals────────┐┌Waves──────────────────────────────────────────────┐\n│               ││────────────────┬───────┬───────┬───────────────   │\n│dout           ││ 0              │1      │2      │0                 │\n│               ││────────────────┴───────┴───────┴───────────────   │\n│clear          ││                        ┌───────┐                  │\n│               ││────────────────────────┘       └───────────────   │\n│clock          ││┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌──│\n│               ││    └───┘   └───┘   └───┘   └───┘   └───┘   └───┘  │\n│               ││                                                   │\n└───────────────┘└───────────────────────────────────────────────────┘\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The signals are shown in the order of the first matching ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Display_rule.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A display rule matches one or more signal names.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "port_name_is",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " matches the given name.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "port_name_is_one_of",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " matches any name in the given list.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "port_name_matches",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " matches the signal name against a regular expression (defined using the OCaml RE library).",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The way the value is shown is configured by a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "wave_format",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". Standard formatting includes",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Binary",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hex",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Unsigned_int",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Int",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Bit",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is like binary but renders a single bit",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "value like the clear signal in the previous example.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "Bit_or X",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " will render as a bit if the width is 1 or X (which may be Hex, or Int for",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "example) otherwise.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "Index",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " takes a list of strings and looks it up based on the runtime value of the signal.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "Custom",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " passes the runtime value to a function which returns the string to display.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "Map",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is like index but looks up the the runtime value in a map.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "hardcaml-waveterm-saving-a-waveform",
+        "additionalIds" : [ "saving-a-waveform" ],
+        "level" : 2,
+        "title" : "Saving a waveform",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Hardcaml waveforms can be saved to file using ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Serialize.marshall",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". It takes a waveform",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "and file name and saves it. Note that it also compresses the waveform data using ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "gzip",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "which must be available.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "Serialize.unmarshall",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " will load the waveform.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The hardcaml waveterm library includes an executable which runs an ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "interactive waveform",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "viewer on saved waveform files",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "generating-vcds",
+      "additionalIds" : [ ],
+      "title" : "Generating VCDs",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "VCDs are a common hardware design file format for storing waveforms. They can be used with",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "standard waveform viewers like Gtkwave.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To generate a VCD call the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Vcd.wrap",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function. It takes an ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Out_channel",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " to write to and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "a simulator and returns a modified simulator to use during simulation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The VCD will be generated as the simulation runs. The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Out_channel",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " being written to may",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "need to be flushed.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let test () =\n  let sim = Simulator.create create in\n  let filename = \"/tmp/waves.vcd\" in\n  let oc = Out_channel.open_text filename in\n  let sim = Vcd.wrap oc sim in\n  testbench sim;\n  (* Closing the out channel will ensure the file is flushed to disk *)\n  Out_channel.close oc;\n  Stdio.print_endline (\"Saved waves to \" ^ filename)\n;;\n\nlet%expect_test \"vcd generation\" =\n  test ();\n  [%expect {| Saved waves to /tmp/waves.vcd |}]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This VCD file can subsequently be opened with a GUI based waveform viewer tool such as",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "url" : "https://surfer-project.org/",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "Surfer",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " or ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "https://github.com/gtkwave/gtkwave",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "GTKWave",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "fit" : true,
+        "destination" : "/hardcaml-docs/surfer-simple-example.png",
+        "alt" : "image",
+        "width" : 1590,
+        "title" : null,
+        "inlined" : false,
+        "timestamp" : 1750709443993,
+        "height" : 1014,
+        "type" : "Image"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709444243,
+    "tocItem" : {
+      "chapterTitle" : "Simulating Circuits",
+      "pageTitle" : "3.2 Waveforms",
+      "pageMeta" : {
+        "parent" : [ "simulating_circuits.mdx" ],
+        "title" : [ "3.2 Waveforms" ],
+        "uuid" : [ "37d1dde1-693e-36a9-1a6a-09548678c014" ]
+      },
+      "dirName" : "simulating-circuits",
+      "fileName" : "waveforms",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Hardcaml Waveterm",
+        "id" : "hardcaml-waveterm",
+        "customAnchorId" : "hardcaml-waveterm"
+      }, {
+        "title" : "Generating VCDs",
+        "id" : "generating-vcds",
+        "customAnchorId" : "generating-vcds"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 2.1.5 ALU</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<header><h1>A Simple 8-bit ALU</h1></header>
+<p>A simple arithmetic logic unit It takes two 8 bit operands and and computes an 8 bit output according to the value of the operation select signal as described in the table below op fn text 0 type SimpleText text A AND B type SimpleText text 1 type SimpleText text A SUB B type SimpleText text 2 type SimpleText text A MUL B type SimpleText text 3 type SimpleText text A SHIFTLEFT 1 type SimpleText text 4 type SimpleText text A SHIFTRIGHT 1 type SimpleText text 5 type SimpleText text A AND B type SimpleText text 6 type SimpleText text A OR B type SimpleText text 7 type SimpleText text A XOR B type SimpleText text 8 type SimpleText text NOT A type SimpleText text 9 type SimpleText text 1 if A LESSTHAN B else 0 type SimpleText text 10 type SimpleText text 1 if A EQUAL B else 0 type SimpleText text otherwise type SimpleText text 0 type SimpleText Verilog VHDL Hardcaml A B q op module alu input 3 0 op input 7 0 a b output reg 7 0 q always @* begin case op 0 q &lt; a b 1 q &lt; a b 2 q &lt; a * b 3 q &lt; a &lt;&lt; 1 4 q &lt; a &gt;&gt; 1 5 q &lt; a &amp; b 6 q &lt; a | b 7 q &lt; a ^ b 8 q &lt; a 9 q &lt; a &lt; b 10 q &lt; a b default q &lt; 0 endcase end endmodule library ieee use ieee std_logic_1164 all use ieee numeric_std all entity alu is port op in std_logic_vector 3 downto 0 a b in std_logic_vector 7 downto 0 q out std_logic_vector 7 downto 0 end entity architecture rtl of alu is signal q_int std_logic_vector 7 downto 0 begin process op a b is variable mul std_logic_vector 15 downto 0 begin case to_integer unsigned op is when 0 &gt; q_int &lt; std_logic_vector unsigned a unsigned b when 1 &gt; q_int &lt; std_logic_vector unsigned a unsigned b when 2 &gt; mul std_logic_vector unsigned a * unsigned b q_int &lt; mul 7 downto 0 when 3 &gt; q_int &lt; std_logic_vector shift_left unsigned a 1 when 4 &gt; q_int &lt; std_logic_vector shift_right unsigned a 1 when 5 &gt; q_int &lt; a and b when 6 &gt; q_int &lt; a or b when 7 &gt; q_int &lt; a xor b when 8 &gt; q_int &lt; not a when 9 &gt; if unsigned a &lt; unsigned b then q_int &lt; 00000001 else q_int &lt; 00000000 end if when 10 &gt; if a b then q_int &lt; 00000001 else q_int &lt; 00000000 end if when others &gt; q_int &lt; others &gt; 0 end case end process end architecture let alu op a b mux op a b a b a * b sll a by 1 srl a by 1 a &amp; b a | b a ^ b a a &lt; b a b zero 8 |&gt; List map f uresize width 8</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "id" : "a-simple-8-bit-alu",
+      "additionalIds" : [ ],
+      "title" : "A Simple 8-bit ALU",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A simple arithmetic logic unit. It takes two 8-bit operands ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "A",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "B",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and computes an",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "8-bit output ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "q",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " according to the value of the operation select signal ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "op",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " as described in",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the table below:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "table" : {
+          "columns" : [ {
+            "title" : "op",
+            "align" : "left"
+          }, {
+            "title" : "fn",
+            "align" : "left"
+          } ],
+          "data" : [ [ [ {
+            "text" : "0",
+            "type" : "SimpleText"
+          } ], [ {
+            "text" : "A AND B",
+            "type" : "SimpleText"
+          } ] ], [ [ {
+            "text" : "1",
+            "type" : "SimpleText"
+          } ], [ {
+            "text" : "A SUB B",
+            "type" : "SimpleText"
+          } ] ], [ [ {
+            "text" : "2",
+            "type" : "SimpleText"
+          } ], [ {
+            "text" : "A MUL B",
+            "type" : "SimpleText"
+          } ] ], [ [ {
+            "text" : "3",
+            "type" : "SimpleText"
+          } ], [ {
+            "text" : "A SHIFTLEFT 1",
+            "type" : "SimpleText"
+          } ] ], [ [ {
+            "text" : "4",
+            "type" : "SimpleText"
+          } ], [ {
+            "text" : "A SHIFTRIGHT 1",
+            "type" : "SimpleText"
+          } ] ], [ [ {
+            "text" : "5",
+            "type" : "SimpleText"
+          } ], [ {
+            "text" : "A AND B",
+            "type" : "SimpleText"
+          } ] ], [ [ {
+            "text" : "6",
+            "type" : "SimpleText"
+          } ], [ {
+            "text" : "A OR B",
+            "type" : "SimpleText"
+          } ] ], [ [ {
+            "text" : "7",
+            "type" : "SimpleText"
+          } ], [ {
+            "text" : "A XOR B",
+            "type" : "SimpleText"
+          } ] ], [ [ {
+            "text" : "8",
+            "type" : "SimpleText"
+          } ], [ {
+            "text" : "NOT A",
+            "type" : "SimpleText"
+          } ] ], [ [ {
+            "text" : "9",
+            "type" : "SimpleText"
+          } ], [ {
+            "text" : "1 if A LESSTHAN B else 0",
+            "type" : "SimpleText"
+          } ] ], [ [ {
+            "text" : "10",
+            "type" : "SimpleText"
+          } ], [ {
+            "text" : "1 if A EQUAL B else 0",
+            "type" : "SimpleText"
+          } ] ], [ [ {
+            "text" : "otherwise",
+            "type" : "SimpleText"
+          } ], [ {
+            "text" : "0",
+            "type" : "SimpleText"
+          } ] ] ]
+        },
+        "type" : "Table"
+      }, {
+        "id" : "a-simple-8-bit-alu-verilog",
+        "additionalIds" : [ "verilog" ],
+        "level" : 2,
+        "title" : "Verilog",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "verilog",
+        "snippet" : "module alu (\n  input [3:0] op,\n  input [7:0] a, b,\n  output reg [7:0] q\n);\n\nalways @* begin\n    case (op)\n      0: q <= a + b;\n      1: q <= a - b;\n      2: q <= a * b;\n      3: q <= a << 1;\n      4: q <= a >> 1;\n      5: q <= a & b;\n      6: q <= a | b;\n      7: q <= a ^ b;\n      8: q <= ~a;\n      9: q <= a < b;\n      10: q <= a == b;\n      default: q <= 0;\n    endcase\n  end\n\nendmodule",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "a-simple-8-bit-alu-vhdl",
+        "additionalIds" : [ "vhdl" ],
+        "level" : 2,
+        "title" : "VHDL",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "vhdl",
+        "snippet" : "library ieee;\nuse ieee.std_logic_1164.all;\nuse ieee.numeric_std.all;\n\nentity alu is\n  port (\n    op : in std_logic_vector(3 downto 0);\n    a, b : in std_logic_vector(7 downto 0);\n    q : out std_logic_vector(7 downto 0)\n  );\nend entity;\n\narchitecture rtl of alu is\n  signal q_int : std_logic_vector(7 downto 0);\nbegin\n\n  process (op, a, b) is\n    variable mul : std_logic_vector(15 downto 0);\n  begin\n    case to_integer(unsigned(op)) is\n      when 0 => q_int <= std_logic_vector(unsigned(a) + unsigned(b));\n      when 1 => q_int <= std_logic_vector(unsigned(a) - unsigned(b));\n      when 2 => \n        mul := std_logic_vector(unsigned(a) * unsigned(b));\n        q_int <= mul(7 downto 0);\n      when 3 => q_int <= std_logic_vector(shift_left(unsigned(a), 1));\n      when 4 => q_int <= std_logic_vector(shift_right(unsigned(a), 1));\n      when 5 => q_int <= a and b;\n      when 6 => q_int <= a or b;\n      when 7 => q_int <= a xor b;\n      when 8 => q_int <= not a;\n      when 9 => \n        if unsigned(a) < unsigned(b) then\n          q_int <= \"00000001\";\n        else\n          q_int <= \"00000000\";\n        end if;\n      when 10 =>\n        if a = b then\n          q_int <= \"00000001\";\n        else\n          q_int <= \"00000000\";\n        end if;\n      when others => q_int <= (others => '0');\n    end case;\n  end process;\n\nend architecture;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "a-simple-8-bit-alu-hardcaml",
+        "additionalIds" : [ "hardcaml" ],
+        "level" : 2,
+        "title" : "Hardcaml",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let alu ~op ~a ~b =\n  mux\n    op\n    ([ a +: b\n     ; a -: b\n     ; a *: b\n     ; sll a ~by:1\n     ; srl a ~by:1\n     ; a &: b\n     ; a |: b\n     ; a ^: b\n     ; ~:a\n     ; a <: b\n     ; a ==: b\n     ; zero 8\n     ]\n     |> List.map ~f:(uresize ~width:8))\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709442923,
+    "tocItem" : {
+      "chapterTitle" : "Designing Circuits",
+      "pageTitle" : "2.1.5 ALU",
+      "pageMeta" : {
+        "parent" : [ "combinational_logic.mdx" ],
+        "title" : [ "2.1.5 ALU" ],
+        "uuid" : [ "918f1070-0018-3261-d4d6-2bfa014130af" ]
+      },
+      "dirName" : "designing-circuits",
+      "fileName" : "alu",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "A Simple 8-bit ALU",
+        "id" : "a-simple-8-bit-alu",
+        "customAnchorId" : "a-simple-8-bit-alu"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

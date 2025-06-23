@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 5.8 Naming with ppx_hardcaml</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p></p>
+</article>
+
+<article>
+<header><h1>Naming with ppx_hardcaml</h1></header>
+<p>We have seen the operator which applies a simple string name to a signal We have also seen which creates a naming operator appropriate for the current level in a design hierarchy The Hardcaml ppx provides a syntax which makes it very convenient to apply scoped names to Hardcaml signals Basic use The syntax can be applied to let bindings whose name will then be applied to the expression A must be excuse me for this in scope for the ppx to work An additional syntax allows the naming of s Naming interfaces Interfaces can be named with the ppx Similarly interfaces containing s are named thus Naming with a module path Interface naming is actually done via a more general framework When we write the ppx finds a function called This is given the thing to name and a prefix derived from the scope and binding name and sets the names This can be applied to specialized Hardcaml types and in particular is implemented for Scope naming # let create scope x let%hw y x in y val create Scope t &gt; t &gt; t &lt;fun&gt; # create Scope create of_string 111 t const names y width 3 value 0b000 %hw scope Always Variable # let create scope let%hw_var x Always Variable wire default gnd in x value val create Scope t &gt; t &lt;fun&gt; # create Scope create t wire names x width 1 # let create scope x let%hw X Of_signal foo x in foo val create Scope t &gt; X Of_signal t &gt; X Of_signal t &lt;fun&gt; # create Scope create X x of_string 111 X Of_signal t X x const names foo$x width 3 value 0b111 Always Variable # let create scope x let%hw X Of_always foo X Of_always wire Signal zero in X Of_always value foo val create Scope t &gt; a &gt; t X t &lt;fun&gt; # create Scope create X x of_string 111 t X t X x wire names foo$x width 1 let%hw Module Path Module Path __ppx_auto_name Always State_machine # let create scope let%hw Always State_machine my_state_machine Always State_machine create module State spec in my_state_machine val create Scope t &gt; State t Always State_machine t &lt;fun&gt; # create Scope create State t Always State_machine t Hardcaml Always State_machine current register names my_state_machine width 1 clock 0b0 clock_edge Rising data_in wire is &lt;fun&gt; set_next &lt;fun&gt; switch &lt;fun&gt;</p>
+</article>
+
+<article>
+<header><h1>Tuples</h1></header>
+<p>Bindings which describe a tuple are also supported We can use and with this form also however all components must be of the appropriate and same type ie or or # let create scope x let%hw y z x x 1 in y z val create Scope t &gt; t &gt; t * t &lt;fun&gt; # create Scope create of_string 111 t * t const names y width 3 value 0b000 const names z width 3 value 0b000 %hw_var %hw Module Path Signal t Always Variable t Some_interface t</p>
+</article>
+
+<article>
+<header><h1>Lists, Arrays, and Iarrays</h1></header>
+<p>The final supported form allows lists arrays and iarrays to be named As might be expected it applies the name along with an index for each element is used for lists of signals and is similarly for arrays and iarrays respectively and expect the list array iarray to contain s These forms may also include a module path for use with interfaces and so on # let create scope x let%hw_list foo x in foo val create Scope t &gt; t list &gt; t list &lt;fun&gt; # create Scope create of_string 111 of_string 101 t list const names foo$0 width 3 value 0b111 const names foo$1 width 3 value 0b101 %hw_list %hw_array %hw_iarray %hw_var_list %hw_var_array %hw_var_iarray Always Variable t</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "id" : "naming-with-ppx_hardcaml",
+      "additionalIds" : [ ],
+      "title" : "Naming with ppx_hardcaml",
+      "headingContent" : [ {
+        "text" : "Naming with ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "ppx_hardcaml",
+        "type" : "InlinedCode"
+      } ],
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We have seen the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "(--)",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " operator which applies a simple string name to a signal. We have",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "also seen ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Scope.naming",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " which creates a naming operator appropriate for the current level",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "in a design hierarchy.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The Hardcaml ppx provides a syntax which makes it very convenient to apply scoped names to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "Hardcaml signals.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "naming-with-ppx_hardcaml-basic-use",
+        "additionalIds" : [ "basic-use" ],
+        "level" : 2,
+        "title" : "Basic use",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let create scope x =\n  let%hw y = ~: x in\n  y\nval create : Scope.t -> t -> t = <fun>\n# create (Scope.create ()) (of_string \"111\")\n- : t = (const (names (y)) (width 3) (value 0b000))",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The syntax ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "%hw",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " can be applied to let bindings whose name will then be applied to the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "expression. A ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "scope",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " must be (excuse me for this) ",
+          "type" : "SimpleText"
+        }, {
+          "type" : "Emphasis",
+          "content" : [ {
+            "text" : "in scope",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " for the ppx to work.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "An additional syntax allows the naming of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Always.Variable",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let create scope =\n    let%hw_var x = Always.Variable.wire ~default:gnd () in\n    x.value;;\nval create : Scope.t -> t = <fun>\n# create (Scope.create ())\n- : t = (wire (names (x)) (width 1))",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "naming-with-ppx_hardcaml-naming-interfaces",
+        "additionalIds" : [ "naming-interfaces" ],
+        "level" : 2,
+        "title" : "Naming interfaces",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Interfaces can be named with the ppx:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let create scope x =\n    let%hw.X.Of_signal foo = x in\n    foo\nval create : Scope.t -> X.Of_signal.t -> X.Of_signal.t = <fun>\n# create (Scope.create ()) { X.x = (of_string \"111\") }\n- : X.Of_signal.t = {X.x = (const (names (foo$x)) (width 3) (value 0b111))}",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Similarly, interfaces containing ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Always.Variable",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s are named thus:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let create scope x =\n    let%hw.X.Of_always foo = X.Of_always.wire Signal.zero in\n    X.Of_always.value foo\nval create : Scope.t -> 'a -> t X.t = <fun>\n# create (Scope.create ()) { X.x = (of_string \"111\") }\n- : t X.t = {X.x = (wire (names (foo$x)) (width 1))}",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "naming-with-ppx_hardcaml-naming-with-a-module-path",
+        "additionalIds" : [ "naming-with-a-module-path" ],
+        "level" : 2,
+        "title" : "Naming with a module path",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Interface naming is actually done via a more general framework. When we write",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "let%hw.Module.Path",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " the ppx finds a function called ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Module.Path.__ppx_auto_name",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". This",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "is given the thing to name and a prefix derived from the scope and binding name and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "sets the names.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This can be applied to specialized Hardcaml types and in particular is implemented for",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Always.State_machine",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let create scope =\n    let%hw.Always.State_machine my_state_machine = Always.State_machine.create (module State) spec in\n    my_state_machine\nval create : Scope.t -> State.t Always.State_machine.t = <fun>\n# create (Scope.create ())\n- : State.t Always.State_machine.t =\n{Hardcaml.Always.State_machine.current =\n  (register (names (my_state_machine)) (width 1)\n ((clock 0b0) (clock_edge Rising)) (data_in wire));\n is = <fun>; set_next = <fun>; switch = <fun>}",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "tuples",
+      "additionalIds" : [ ],
+      "title" : "Tuples",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Bindings which describe a tuple are also supported.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let create scope x =\n  let%hw y, z = ~: x, x +:. 1 in\n  y, z\nval create : Scope.t -> t -> t * t = <fun>\n# create (Scope.create ()) (of_string \"111\")\n- : t * t =\n((const (names (y)) (width 3) (value 0b000)),\n (const (names (z)) (width 3) (value 0b000)))",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We can use ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "%hw_var",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "%hw.Module.Path",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " with this form also, however, all components",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "must be of the appropriate, and same, type (ie ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Signal.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " or ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Always.Variable.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " or",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Some_interface.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ").",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "lists-arrays-and-iarrays",
+      "additionalIds" : [ ],
+      "title" : "Lists, Arrays, and Iarrays",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The final supported form allows lists, arrays, and iarrays to be named. As might be",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "expected, it applies the name along with an index for each element.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let create scope x =\n  let%hw_list foo = x in\n  foo\nval create : Scope.t -> t list -> t list = <fun>\n# create (Scope.create ()) [ of_string \"111\"; of_string \"101\" ]\n- : t list =\n[(const (names (foo$0)) (width 3) (value 0b111));\n (const (names (foo$1)) (width 3) (value 0b101))]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "%hw_list",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is used for lists of signals.  ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "%hw_array",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "%hw_iarray",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is similarly for",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "arrays and iarrays respectively.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "%hw_var_list",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "%hw_var_array",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "%hw_var_iarray",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " expect the list/array/iarray to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "contain ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Always.Variable.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "These forms may also include a module path for use with interfaces and so on.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709442905,
+    "tocItem" : {
+      "chapterTitle" : "Using Interfaces",
+      "pageTitle" : "5.8 Naming with ppx_hardcaml",
+      "pageMeta" : {
+        "parent" : [ "using_interfaces.mdx" ],
+        "title" : [ "5.8 Naming with ppx_hardcaml" ],
+        "uuid" : [ "15860b19-465d-3f71-fcd7-2b2ef0c48503" ]
+      },
+      "dirName" : "using-interfaces",
+      "fileName" : "naming_with_ppx_hardcaml",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Naming with ppx_hardcaml",
+        "id" : "naming-with-ppx_hardcaml",
+        "customAnchorId" : "naming-with-ppx_hardcaml"
+      }, {
+        "title" : "Tuples",
+        "id" : "tuples",
+        "customAnchorId" : "tuples"
+      }, {
+        "title" : "Lists, Arrays, and Iarrays",
+        "id" : "lists-arrays-and-iarrays",
+        "customAnchorId" : "lists-arrays-and-iarrays"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

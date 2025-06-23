@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 6.3 Fibonacci Numbers</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>In the following example we design a state machine which computes the n th Fibonacci number Defining the circuit interfaces Note that we must use the field name in the output interface as it is a reserved word in OCaml but can use the ppx to give it our preferred name Defining the State type The circuit will wait for a start signal in and capture the input value to compute the Fibonacci number for The computation will happen over multiple cycles in state and the result will be output in the state Implementing the logic Testing the logic Lets now write a testbench which traces the sequence of states and the computed result Seeing the computation in a waveform Lets set up some display rules so the waveform prints nicely A useful pattern when defining is to over the and use the default If the width of the port is 1 it will show as a bit otherwise it will show as the type For the state value we use the type which allows us to show the value symbolically Showing the waveform module I struct type a t clock a clear a start a n a @bits 8 @@deriving hardcaml end module O struct type a t done_ a @rtlname done result a @bits 32 state a @bits 2 @@deriving hardcaml end done_ open Base open Hardcaml module Waveform Hardcaml_waveterm Waveform module States struct type t | S_wait | S_counting | S_write_result @@deriving sexp_of compare enumerate end S_wait n S_counting S_write_result let create i _ I t let r_sync Signal Reg_spec create clock i clock clear i clear in let sm Always State_machine create module States enable vdd r_sync in let done_ Always Variable wire default gnd in let result Always Variable wire default zero 32 in let f0 Always Variable reg width 32 enable Signal vdd r_sync in let f1 Always Variable reg width 32 enable Signal vdd r_sync in let remaining Always Variable reg width 8 enable Signal vdd r_sync in Always compile sm switch S_wait * The a &lt; b is semantically equivalent to a &lt; Signal of_unsigned_int width Signal width a value b Similar syntactic sugar exists for and * f0 &lt; 1 f1 &lt; 1 remaining &lt; i n 1 when_ i start if_ i n 0 sm set_next S_write_result sm set_next S_counting S_counting if_ remaining value 0 sm set_next S_write_result remaining &lt; remaining value 1 * Recall that all hardcaml assignments are synchronous so the f1 assignment below will make use of the old f0 value * f0 &lt; f1 value f1 &lt; f0 value f1 value * Output the computation result to the user * S_write_result done_ &lt; 1 result &lt; f1 value sm set_next S_wait O done_ done_ value result result value state * We output the state to help tracing in the simulation example that follows * sm current let fibonacci_testbench sim _ I t _ O t Cyclesim t let inputs outputs Cyclesim inputs sim Cyclesim outputs sim in let print_state_and_outputs let state List nth_exn States all Bits to_unsigned_int outputs state in let done_ Bits to_bool outputs done_ in let result Bits to_unsigned_int outputs result in Stdio print_s %message state States t done_ bool result int in * Start by resetting simulation and clearing the circuit * Cyclesim reset sim inputs clear Bits vdd Cyclesim cycle sim inputs clear Bits gnd * Cycle 0 * print_state_and_outputs * Cycle 1 * inputs start Bits vdd inputs n Bits of_unsigned_int width 8 4 Cyclesim cycle sim print_state_and_outputs inputs start Bits gnd * Cycle 2 Start counting the fibonacci number * Cyclesim cycle sim print_state_and_outputs * Cycle 3 * Cyclesim cycle sim print_state_and_outputs * Cycle 4 * Cyclesim cycle sim print_state_and_outputs * Cycle 5 notice that the wire assignment is combinational the done signal is asserted during the same cycle it is assigned in the state machine * Cyclesim cycle sim print_state_and_outputs * Cycle 6 this goes back to the initial waiting state * Cyclesim cycle sim print_state_and_outputs Cyclesim cycle sim let test let module Sim Cyclesim With_interface I O in let sim Sim create create in let waves sim Waveform create sim in fibonacci_testbench sim waves # let waves test state S_wait done_ false result 0 state S_counting done_ false result 0 state S_counting done_ false result 0 state S_counting done_ false result 0 state S_counting done_ false result 0 state S_write_result done_ true result 5 state S_wait done_ false result 0 val waves Waveform t &lt;abstr&gt; display_rules map port_names wave_format Bit_or X X Index let display_rules let open Display_rule in let input_rules I map port_names f port_name_is wave_format Bit_or Unsigned_int |&gt; to_list in let output_rules O map port_names f port_name_is wave_format Bit_or Unsigned_int with O state port_name_is state wave_format Index List map States all f fun t &gt; States sexp_of_t t |&gt; Sexp to_string |&gt; O to_list in input_rules @ output_rules # let Waveform print waves display_width 94 display_rules SignalsWaves clock                      clear       start         n  0 4    done         result  0 5 0      state  S_wait S_counting S_writ S_wait    </p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "In the following example we design a state machine which computes the",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "n-th Fibonacci number.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "defining-the-circuit-interfaces",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Defining the circuit interfaces",
+      "type" : "SubHeading"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "module I = struct\n  type 'a t =\n    { clock : 'a\n    ; clear : 'a\n    ; start : 'a\n    ; n : 'a[@bits 8]\n    }\n  [@@deriving hardcaml]\nend\n\nmodule O = struct\n  type 'a t =\n    { done_ : 'a[@rtlname \"done\"]\n    ; result : 'a[@bits 32]\n    ; state : 'a[@bits 2]\n    }\n  [@@deriving hardcaml]\nend",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Note that we must use the field name ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "done_",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " in the output interface as it is a reserved",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "word in OCaml, but can use the ppx to give it our preferred name.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "defining-the-state-type",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Defining the State type",
+      "type" : "SubHeading"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "open Base\nopen Hardcaml\nmodule Waveform = Hardcaml_waveterm.Waveform\n\nmodule States = struct\n  type t =\n    | S_wait\n    | S_counting\n    | S_write_result\n  [@@deriving sexp_of, compare, enumerate]\nend",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The circuit will wait for a start signal in ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "S_wait",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " and capture the input value ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "n",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " to",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "compute the Fibonacci number for. The computation will happen over multiple cycles in",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "state ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "S_counting",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " and the result will be output in the state ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "S_write_result",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ".",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "implementing-the-logic",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Implementing the logic",
+      "type" : "SubHeading"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "let create (i : _ I.t) =\n  let r_sync = Signal.Reg_spec.create ~clock:i.clock ~clear:i.clear () in\n  let sm = Always.State_machine.create (module States) ~enable:vdd r_sync in\n  let done_ = Always.Variable.wire ~default:gnd () in\n  let result = Always.Variable.wire ~default:(zero 32) () in\n  let f0 = Always.Variable.reg ~width:32 ~enable:Signal.vdd r_sync in\n  let f1 = Always.Variable.reg ~width:32 ~enable:Signal.vdd r_sync in\n  let remaining = Always.Variable.reg ~width:8 ~enable:Signal.vdd r_sync in\n  Always.(\n    compile\n      [ sm.switch\n          [ ( S_wait\n            , [ (* The [a <--. b] is semantically equivalent to\n\n                   [a <-- Signal.of_unsigned_int ~width:(Signal.width a.value) b]\n\n                   Similar syntactic sugar exists for [+:.] and [-:.]. *)\n                f0 <--. 1\n              ; f1 <--. 1\n              ; remaining <-- i.n -:. 1\n              ; when_\n                  i.start\n                  [ if_\n                      (i.n ==:. 0)\n                      [ sm.set_next S_write_result ]\n                      [ sm.set_next S_counting ]\n                  ]\n              ] )\n          ; ( S_counting\n            , [ if_\n                  (remaining.value ==:. 0)\n                  [ sm.set_next S_write_result ]\n                  [ remaining <-- remaining.value -:. 1\n                  ; (* Recall that all hardcaml assignments are synchronous, so the [f1]\n                       assignment below will make use of the old [f0] value. *)\n                    f0 <-- f1.value\n                  ; f1 <-- f0.value +: f1.value\n                  ]\n              ] )\n          ; (* Output the computation result to the user. *)\n            S_write_result, [ done_ <--. 1; result <-- f1.value; sm.set_next S_wait ]\n          ]\n      ]);\n  { O.done_ = done_.value\n  ; result = result.value\n  ; state =\n      (* We output the [state] to help tracing in the simulation example that follows. *)\n      sm.current\n  }\n;;",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "id" : "testing-the-logic",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Testing the logic",
+      "type" : "SubHeading"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Lets now write a testbench which traces the sequence of states and the computed result.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "let fibonacci_testbench (sim : (_ I.t, _ O.t) Cyclesim.t) =\n  let inputs, outputs = Cyclesim.inputs sim, Cyclesim.outputs sim in\n  let print_state_and_outputs () =\n    let state = List.nth_exn States.all (Bits.to_unsigned_int !(outputs.state)) in\n    let done_ = Bits.to_bool !(outputs.done_) in\n    let result = Bits.to_unsigned_int !(outputs.result) in\n    Stdio.print_s [%message (state : States.t) (done_ : bool) (result : int)]\n  in\n  (* Start by resetting simulation and clearing the circuit. *)\n  Cyclesim.reset sim;\n  inputs.clear := Bits.vdd;\n  Cyclesim.cycle sim;\n  inputs.clear := Bits.gnd;\n  (* Cycle 0 *)\n  print_state_and_outputs ();\n  (* Cycle 1 *)\n  inputs.start := Bits.vdd;\n  inputs.n := Bits.of_unsigned_int ~width:8 4;\n  Cyclesim.cycle sim;\n  print_state_and_outputs ();\n  inputs.start := Bits.gnd;\n  (* Cycle 2 - Start counting the fibonacci number. *)\n  Cyclesim.cycle sim;\n  print_state_and_outputs ();\n  (* Cycle 3 *)\n  Cyclesim.cycle sim;\n  print_state_and_outputs ();\n  (* Cycle 4 *)\n  Cyclesim.cycle sim;\n  print_state_and_outputs ();\n  (* Cycle 5 - notice that the wire assignment is combinational - the [done] signal is\n     asserted during the same cycle it is assigned in the state machine. *)\n  Cyclesim.cycle sim;\n  print_state_and_outputs ();\n  (* Cycle 6 - this goes back to the initial waiting state. *)\n  Cyclesim.cycle sim;\n  print_state_and_outputs ();\n  Cyclesim.cycle sim\n;;\n\nlet test () =\n  let module Sim = Cyclesim.With_interface (I) (O) in\n  let sim = Sim.create create in\n  let waves, sim = Waveform.create sim in\n  fibonacci_testbench sim;\n  waves\n;;",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let waves = test ()\n((state S_wait) (done_ false) (result 0))\n((state S_counting) (done_ false) (result 0))\n((state S_counting) (done_ false) (result 0))\n((state S_counting) (done_ false) (result 0))\n((state S_counting) (done_ false) (result 0))\n((state S_write_result) (done_ true) (result 5))\n((state S_wait) (done_ false) (result 0))\nval waves : Waveform.t = <abstr>",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "id" : "seeing-the-computation-in-a-waveform",
+      "additionalIds" : [ ],
+      "level" : 2,
+      "title" : "Seeing the computation in a waveform",
+      "type" : "SubHeading"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Lets set up some display rules so the waveform prints nicely.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "A useful pattern when defining ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "display_rules",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " is to ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "map",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " over the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "port_names",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " and use",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "the default ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "wave_format",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "(Bit_or X)",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ". If the width of the port is 1 it will show as a",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "bit, otherwise, it will show as the type ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "X",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ".",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "For the state value, we use the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Index",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " type which allows us to show the value",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "symbolically.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "let display_rules =\n  let open Display_rule in\n  let input_rules =\n    I.(map port_names ~f:(port_name_is ~wave_format:(Bit_or Unsigned_int)) |> to_list)\n  in\n  let output_rules =\n    { O.(map port_names ~f:(port_name_is ~wave_format:(Bit_or Unsigned_int))) with\n      O.state =\n        port_name_is\n          \"state\"\n          ~wave_format:\n            (Index\n               (List.map States.all ~f:(fun t -> States.sexp_of_t t |> Sexp.to_string)))\n    }\n    |> O.to_list\n  in\n  input_rules @ output_rules\n;;",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Showing the waveform.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "ocaml",
+      "snippet" : "# let () =\n    Waveform.print waves\n      ~display_width:94\n      ~display_rules\n  ;;\n┌Signals───────────┐┌Waves───────────────────────────────────────────────────────────────────┐\n│clock             ││┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   │\n│                  ││    └───┘   └───┘   └───┘   └───┘   └───┘   └───┘   └───┘   └───┘   └───│\n│clear             ││        ┌───────┐                                                       │\n│                  ││────────┘       └───────────────────────────────────────────────────────│\n│start             ││                ┌───────┐                                               │\n│                  ││────────────────┘       └───────────────────────────────────────────────│\n│                  ││────────────────┬───────────────────────────────────────────────────────│\n│n                 ││ 0              │4                                                      │\n│                  ││────────────────┴───────────────────────────────────────────────────────│\n│done              ││                                                        ┌───────┐       │\n│                  ││────────────────────────────────────────────────────────┘       └───────│\n│                  ││────────────────────────────────────────────────────────┬───────┬───────│\n│result            ││ 0                                                      │5      │0      │\n│                  ││────────────────────────────────────────────────────────┴───────┴───────│\n│                  ││────────────────────────┬───────────────────────────────┬───────┬───────│\n│state             ││ S_wait                 │S_counting                     │S_writ.│S_wait │\n│                  ││────────────────────────┴───────────────────────────────┴───────┴───────│\n└──────────────────┘└────────────────────────────────────────────────────────────────────────┘",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    } ],
+    "lastModifiedTime" : 1750709443960,
+    "tocItem" : {
+      "chapterTitle" : "Examples",
+      "pageTitle" : "6.3 Fibonacci Numbers",
+      "pageMeta" : {
+        "parent" : [ "examples.mdx" ],
+        "title" : [ "6.3 Fibonacci Numbers" ],
+        "uuid" : [ "445561d5-fcf1-37e8-7643-0c6e0189edca" ]
+      },
+      "dirName" : "examples",
+      "fileName" : "fibonacci_numbers",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

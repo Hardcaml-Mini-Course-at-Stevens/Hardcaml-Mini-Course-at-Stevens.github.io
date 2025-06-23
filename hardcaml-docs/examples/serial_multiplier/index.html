@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 6.2 Serial Multipler</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>We now show a complete example which implements a bit serial unsigned multiplier We will both implement the design and show how to test it</p>
+</article>
+
+<article>
+<header><h1>Algorithm</h1></header>
+<p>Given two input numbers of bit widths and a bit serial multiplier will produce a result of size every M clock cycles Given two input values and we consider each bit of in turn and form a partial product This then gets added to a running sum Let s start with a simple OCaml implementation of this algorithm Note that we do not explicitly track the iteration number Rather we detect when to stop by shifting down on each iteration and checking if it is Similarly the partial product term is computed by shifting up by one each iteration A similar set of tricks will be used to define an efficient hardware implementation Before we turn fully to the hardware implementation let s try to port the above code to the Hardcaml type The reason this hasn t worked is we are computing the running sum and partial product terms using the bit width of We need to also include the width of N M M N a b b if b i then a &lt;&lt; i else 0 # open Base # let rec umul a b if b 0 then 0 else let partial_product if b land 1 1 then a else 0 in partial_product umul a lsl 1 b lsr 1 val umul int &gt; int &gt; int &lt;fun&gt; # umul 3 5 int 15 # umul 100 99 int 9900 b 0 a &lt;&lt; i Bits # open Hardcaml # open Hardcaml Bits # let rec umul a b if to_unsigned_int b 0 then zero width a else let partial_product mux2 b 0 0 a zero width a in partial_product umul sll a by 1 srl b by 1 val umul t &gt; t &gt; t &lt;fun&gt; # to_unsigned_int umul of_unsigned_int width 2 3 of_unsigned_int width 3 5 int 3 a b # let umul a b umul uresize a width width a width b b val umul t &gt; t &gt; t &lt;fun&gt; # to_unsigned_int umul of_unsigned_int width 2 3 of_unsigned_int width 3 5 int 15 # to_unsigned_int umul of_unsigned_int width 7 100 of_unsigned_int width 7 99 int 9900</p>
+</article>
+
+<article>
+<header><h1>Hardware implementation</h1></header>
+<p>We start by implementing functions for the partial product and running sum The function takes a new argument called This is used to indicate when we are processing bit of and clears the initial sum to The inputs to the addition in are of and are zero extended by the function to produce a result of Didn t we need more precision than this in the implementation We will avoid this by outputting a fully computed bit at each iteration We also need to store the computed bits in a register The final implementation just needs to put these functions together # open Hardcaml Signal # let partial_product a b0 mux2 b0 a zero width a val partial_product Type t &gt; Type t &gt; Type t &lt;fun&gt; # let running_sum first sum a b0 let sum mux2 first zero width sum sum in ue sum ue partial_product a b0 val running_sum Type t &gt; Type t &gt; Type t &gt; Type t &gt; Type t &lt;fun&gt; running_sum first 0 b 0 running_sum width a ue width a 1 Bits # let running_sum_reg spec first a b0 let sum_w wire width a running_sum in let running_sum running_sum first sum_w a b0 running_sum_next in * Split the sum into it s least significant bit and the rest * let running_sum_bit_out lsb running_sum in let running_sum msbs running_sum in * Register the sum * let sum reg spec enable vdd running_sum in sum_w &lt; sum sum running_sum_bit_out val running_sum_reg Reg_spec t &gt; Type t &gt; Type t &gt; Type t &gt; Type t * Type t &lt;fun&gt; # let computed_bits spec width bit reg_fb spec width f fun d &gt; bit @ msbs d val computed_bits Reg_spec t &gt; int &gt; Type t &gt; Type t &lt;fun&gt; # let umul_sequential clock first a b_width b0 let spec Reg_spec create clock in let running_sum computed_bit running_sum_reg spec first a b0 in let computed_bits computed_bits spec b_width computed_bit in running_sum @ computed_bits val umul_sequential Type t &gt; Type t &gt; Type t &gt; int &gt; Type t &gt; Type t &lt;fun&gt;</p>
+</article>
+
+<article>
+<header><h1>Testbench</h1></header>
+<p>We will now test our multiplier First let s create the required We can now create a simulation and waveform and get a handle on the input and output ports The following testbench will take and and create a circuit adapted to their bit widths It will then perform iterations and return the final result Let s test our running examples of multiplying and Circuit t # let create_circuit a_width b_width let clock input clock 1 in let first input first 1 in let a input a a_width in let b0 input b0 1 in let result umul_sequential clock first a b_width b0 in Circuit create_exn name umul output result result val create_circuit int &gt; int &gt; Circuit t &lt;fun&gt; # module Waveform Hardcaml_waveterm Waveform module Waveform Hardcaml_waveterm Waveform # let create_sim circuit let sim Cyclesim create config Cyclesim Config trace_all circuit in let waves sim Waveform create sim in let first Cyclesim in_port sim first in let a Cyclesim in_port sim a in let b0 Cyclesim in_port sim b0 in let result Cyclesim out_port sim result in waves sim first a b0 result val create_sim Circuit t &gt; Waveform t * Cyclesim Port_list t Cyclesim Port_list t Cyclesim t * Binary t ref * Binary t ref * Binary t ref * Binary t ref &lt;fun&gt; a b width b # let test a_in b_in let open Bits in let waves sim first a b0 result create_circuit width a_in width b_in |&gt; create_sim in let step iteration first if iteration 0 then vdd else gnd b0 b_in iteration iteration Cyclesim cycle sim in a a_in for i 0 to width b_in 1 do step i done * grab the result and perform 1 more cycle so we can see the result in the waveform * let result result in Cyclesim cycle sim waves result val test Binary t &gt; Binary t &gt; Waveform t * Binary t &lt;fun&gt; 3*5 100*99 # let waves result test Bits of_unsigned_int width 2 3 Bits of_unsigned_int width 3 5 val waves Waveform t &lt;abstr&gt; val result Binary t 01111 # Stdio printf %i Bits to_unsigned_int result 15 unit # Waveform print waves SignalsWaves clock                    a  3     b0        first          result  00 0C 06 0F     gnd         running_sum  0 1 0 1        running_sum_nex 3 1 3 4      unit # let _ result test Bits of_unsigned_int width 7 100 Bits of_unsigned_int width 7 99 val result Binary t 10011010101100 # Stdio printf %i Bits to_unsigned_int result 9900 unit</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "We now show a complete example which implements a bit-serial unsigned multiplier. We will",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "both implement the design and show how to test it.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "algorithm",
+      "additionalIds" : [ ],
+      "title" : "Algorithm",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Given two input numbers of bit-widths ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "N",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "M",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", a bit serial multiplier will produce a",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "result of size ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "M+N",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " every M clock cycles.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Given two input values ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "a",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "b",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", we consider each bit of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "b",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " in turn and form a partial",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "product.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : "if b[i] then (a << i) else 0",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This then gets added to a running sum. Let's start with a simple OCaml implementation of",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "this algorithm.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# open Base\n# let rec umul a b =\n  if b=0 then 0\n  else\n    let partial_product = if (b land 1) = 1 then a else 0 in\n    partial_product + umul (a lsl 1) (b lsr 1)\nval umul : int -> int -> int = <fun>\n# umul 3 5\n- : int = 15\n# umul 100 99\n- : int = 9900",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Note that we do not explicitly track the iteration number. Rather we detect when to stop",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "by shifting ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "b",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " down on each iteration and checking if it is ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "0",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". Similarly, the partial",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "product term ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "a << i",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is computed by shifting up by one each iteration. A similar set of",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "tricks will be used to define an efficient hardware implementation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Before we turn fully to the hardware implementation, let's try to port the above code to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the Hardcaml ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Bits",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " type.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# open Hardcaml\n# open Hardcaml.Bits\n# let rec umul a b =\n  if to_unsigned_int b = 0 then zero (width a)\n  else\n    let partial_product = mux2 b.:[0,0] a (zero (width a)) in\n    partial_product +: umul (sll a ~by:1) (srl b ~by:1)\nval umul : t -> t -> t = <fun>\n# to_unsigned_int (umul (of_unsigned_int ~width:2 3) (of_unsigned_int ~width:3 5))\n- : int = 3",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The reason this hasn't worked is we are computing the running sum and partial product",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "terms using the bit-width of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "a",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". We need to also include the width of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "b",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let umul a b = umul (uresize a ~width:(width a + width b)) b\nval umul : t -> t -> t = <fun>\n# to_unsigned_int (umul (of_unsigned_int ~width:2 3) (of_unsigned_int ~width:3 5))\n- : int = 15\n# to_unsigned_int (umul (of_unsigned_int ~width:7 100) (of_unsigned_int ~width:7 99))\n- : int = 9900",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "hardware-implementation",
+      "additionalIds" : [ ],
+      "title" : "Hardware implementation",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We start by implementing functions for the partial product and running sum.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# open Hardcaml.Signal\n# let partial_product a b0 =\n    mux2 b0 a (zero (width a))\nval partial_product : Type.t -> Type.t -> Type.t = <fun>\n# let running_sum first sum a b0 =\n    let sum = mux2 first (zero (width sum)) sum in\n    ue sum +: (ue (partial_product a b0))\nval running_sum : Type.t -> Type.t -> Type.t -> Type.t -> Type.t = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "running_sum",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function takes a new argument called ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "first",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". This is used to indicate",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "when we are processing bit ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "0",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "b",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and clears the initial sum to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "0",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The inputs to the addition in ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "running_sum",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " are of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "width a",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and are zero-extended by the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "ue",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function to produce a result of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "width a + 1",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". Didn't we need more precision than",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "this in the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Bits",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " implementation? We will avoid this by outputting a fully computed bit",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "at each iteration.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let running_sum_reg spec first a b0 =\n    let sum_w = wire (width a) -- \"running_sum\" in\n    let running_sum = running_sum first sum_w a b0  -- \"running_sum_next\" in\n    (* Split the sum into it's least significant bit and the rest. *)\n    let running_sum_bit_out = lsb running_sum in\n    let running_sum = msbs running_sum in\n    (* Register the sum *)\n    let sum = reg spec ~enable:vdd running_sum in\n    sum_w <-- sum;\n    sum, running_sum_bit_out\nval running_sum_reg :\n  Reg_spec.t -> Type.t -> Type.t -> Type.t -> Type.t * Type.t = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We also need to store the computed bits in a register.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let computed_bits spec width bit =\n   reg_fb spec ~width ~f:(fun d -> bit @: msbs d)\nval computed_bits : Reg_spec.t -> int -> Type.t -> Type.t = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The final implementation just needs to put these functions together.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let umul_sequential clock first a b_width b0 =\n    let spec = Reg_spec.create ~clock () in\n    let running_sum, computed_bit = running_sum_reg spec first a b0 in\n    let computed_bits = computed_bits spec b_width computed_bit in\n    running_sum @: computed_bits\nval umul_sequential : Type.t -> Type.t -> Type.t -> int -> Type.t -> Type.t =\n  <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "testbench",
+      "additionalIds" : [ ],
+      "title" : "Testbench",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We will now test our multiplier. First, let's create the required",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Circuit.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let create_circuit a_width b_width =\n    let clock = input \"clock\" 1 in\n    let first = input \"first\" 1 in\n    let a = input \"a\" a_width in\n    let b0 = input \"b0\" 1 in\n    let result = umul_sequential clock first a b_width b0 in\n    Circuit.create_exn ~name:\"umul\" [ output \"result\" result ]\nval create_circuit : int -> int -> Circuit.t = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We can now create a simulation and waveform and get a handle on the input and output",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "ports.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# module Waveform = Hardcaml_waveterm.Waveform\nmodule Waveform = Hardcaml_waveterm.Waveform\n# let create_sim circuit =\n    let sim = Cyclesim.create ~config:Cyclesim.Config.trace_all circuit in\n    let waves, sim = Waveform.create sim in\n    let first = Cyclesim.in_port sim \"first\" in\n    let a = Cyclesim.in_port sim \"a\" in\n    let b0 = Cyclesim.in_port sim \"b0\" in\n    let result = Cyclesim.out_port sim \"result\" in\n    waves, sim, first, a, b0, result\nval create_sim :\n  Circuit.t ->\n  Waveform.t * (Cyclesim.Port_list.t, Cyclesim.Port_list.t) Cyclesim.t *\n  Binary.t ref * Binary.t ref * Binary.t ref * Binary.t ref = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The following testbench will take ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "a",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "b",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and create a circuit adapted to their bit",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "widths. It will then perform ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "width b",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " iterations and return the final result.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let test a_in b_in =\n    let open Bits in\n    let waves, sim, first, a, b0, result =\n      create_circuit (width a_in) (width b_in)\n      |> create_sim\n    in\n    let step iteration =\n      first := if iteration=0 then vdd else gnd;\n      b0 := b_in.:[iteration,iteration];\n      Cyclesim.cycle sim;\n    in\n    a := a_in;\n    for i=0 to width b_in - 1 do\n      step i\n    done;\n    (* grab the result and perform 1 more cycle so we can see the result in the waveform *)\n    let result = !result in\n    Cyclesim.cycle sim;\n    waves, result\nval test : Binary.t -> Binary.t -> Waveform.t * Binary.t = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Let's test our running examples of multiplying ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "3*5",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "100*99",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let waves, result = test (Bits.of_unsigned_int ~width:2 3) (Bits.of_unsigned_int ~width:3 5)\nval waves : Waveform.t = <abstr>\nval result : Binary.t = 01111\n# Stdio.printf \"%i\" (Bits.to_unsigned_int result)\n15\n- : unit = ()\n# Waveform.print waves\n┌Signals────────┐┌Waves──────────────────────────────────────────────┐\n│clock          ││┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌──│\n│               ││    └───┘   └───┘   └───┘   └───┘   └───┘   └───┘  │\n│               ││────────────────────────────────                   │\n│a              ││ 3                                                 │\n│               ││────────────────────────────────                   │\n│b0             ││────────┐       ┌───────────────                   │\n│               ││        └───────┘                                  │\n│first          ││────────┐                                          │\n│               ││        └───────────────────────                   │\n│               ││────────┬───────┬───────┬───────                   │\n│result         ││ 00     │0C     │06     │0F                        │\n│               ││────────┴───────┴───────┴───────                   │\n│gnd            ││                                                   │\n│               ││────────────────────────────────                   │\n│               ││────────┬───────┬───────┬───────                   │\n│running_sum    ││ 0      │1      │0      │1                         │\n│               ││────────┴───────┴───────┴───────                   │\n│               ││────────┬───────┬───────┬───────                   │\n│running_sum_nex││ 3      │1      │3      │4                         │\n│               ││────────┴───────┴───────┴───────                   │\n└───────────────┘└───────────────────────────────────────────────────┘\n- : unit = ()\n# let _, result = test (Bits.of_unsigned_int ~width:7 100) (Bits.of_unsigned_int ~width:7 99)\nval result : Binary.t = 10011010101100\n# Stdio.printf \"%i\" (Bits.to_unsigned_int result)\n9900\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443679,
+    "tocItem" : {
+      "chapterTitle" : "Examples",
+      "pageTitle" : "6.2 Serial Multipler",
+      "pageMeta" : {
+        "parent" : [ "examples.mdx" ],
+        "title" : [ "6.2 Serial Multipler" ],
+        "uuid" : [ "6ee57d03-6283-3f55-aa1d-980301b708d7" ]
+      },
+      "dirName" : "examples",
+      "fileName" : "serial_multiplier",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Algorithm",
+        "id" : "algorithm",
+        "customAnchorId" : "algorithm"
+      }, {
+        "title" : "Hardware implementation",
+        "id" : "hardware-implementation",
+        "customAnchorId" : "hardware-implementation"
+      }, {
+        "title" : "Testbench",
+        "id" : "testbench",
+        "customAnchorId" : "testbench"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

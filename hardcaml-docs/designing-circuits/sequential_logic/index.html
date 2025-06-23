@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 2.2 Sequential Logic</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>Sequential logic is built from primitives such as registers and memories A key concept in sequential logic is the Sequential logic updates on the rising or less commonly falling edge of the clock and holds its value throughout the clock cycle clock</p>
+</article>
+
+<article>
+<header><h1>Reg_spec</h1></header>
+<p>The clock and related reset and clear signals are grouped together in a type called a Multiple sequential elements are then able to refer to the same Reg_spec t # open Hardcaml # let clock Signal input clock 1 val clock Signal t wire names clock width 1 # let clear Signal input clear 1 val clear Signal t wire names clear width 1 # let spec Signal Reg_spec create clock clear val spec Signal Reg_spec t &lt;abstr&gt; Reg_spec t</p>
+</article>
+
+<article>
+<header><h1>Registers, Pipelines</h1></header>
+<p>A simple register takes a signal as input and basically delays it for one cycle The pipeline function will delay its input for multiple cycles # let d_in Signal input d_in 8 val d_in Signal t wire names d_in width 8 # let q_out Signal reg spec enable Signal vdd d_in val q_out Signal t register width 8 clock clock clock_edge Rising clear clear clear_to 0b00000000 data_in d_in # let q_out_after_3_clocks Signal pipeline spec enable Signal vdd n 3 d_in val q_out_after_3_clocks Signal t register width 8 clock clock clock_edge Rising clear clear clear_to 0b00000000 data_in register</p>
+</article>
+
+<article>
+<header><h1>Registers with Feedback</h1></header>
+<p>We noted previously that combinational logic could not contain cycles We can lift this restriction with sequential logic so long as the cycle passes through a register or memory The function encodes a simple example of this pattern For example to build a counter we need to access the current value to produce the next one reg_fb # let counter Signal reg_fb spec enable Signal vdd width 8 f fun d &gt; Signal d 1 val counter Signal t register width 8 clock clock clock_edge Rising clear clear clear_to 0b00000000 data_in wire</p>
+</article>
+
+<article>
+<header><h1>Wires</h1></header>
+<p>In Hardcaml a is a signal which can be declared before providing its input driver Logically it does nothing it just passes its input through to its output Wires can later be assigned an input driver Apart from the fact they logically do nothing they are really useful It is how the function is implemented Without wires we cannot express the above function since the input to refers to its own output Two words of caution when using wires Combinational cycles We can t stop you from creating them but we can throw an exception when you do It s worth repeating cycles must pass through a sequential primitive The hairy unassigned wire exception Hardcaml will detect when you forget to assign a value to a wire but the error will not be especially useful in finding out where You can enable an extra level of debugging information by setting the following value which will help track down where the wire was originally defined wire # let w Signal wire 1 val w Signal t wire width 1 # Signal w &lt; vdd unit # w Signal t wire width 1 data_in 0b1 reg_fb # let reg_fb spec enable w f let d Signal wire w in let q Signal reg spec enable f d in Signal d &lt; q q val reg_fb Signal Reg_spec t &gt; enable Signal t &gt; w int &gt; Signal t &gt; Signal t &gt; Signal t &lt;fun&gt; reg Caller_id set_mode Top_of_stack</p>
+</article>
+
+<article>
+<header><h1>State Machines</h1></header>
+<p>State machines are just a complex combination of registers and multiplexers so it is possible to build them directly with the primitives described here but not very conveniently Rather we recommend using the Always DSL</p>
+</article>
+
+<article>
+<header><h1>Memories</h1></header>
+<p>Core asynchronous memory primitive Hardcaml provides the primitive for describing memory structures They are synchronously written using Each write port can have a different clock The memory is read asynchronously using The read data is returned as an array one for each read port RAMs On their own s are not that useful Instead we provide the module which can target the physical RAM blocks in FPGAs i e BlockRAM or UltraRAM in Xilinx devices This is done by instantiating a multiport_memory and a register placed on either the read address or output data Note that this means the read ports are now synchronous and read data is returned one cycle later Each read port can have a different clock For this to work we use a feature of FPGA synthesizers called RTL RAM inference This process is notoriously finicky so read the tool reports to ensure it is doing what you expect I m looking at you Vivado Practical considerations The RAM structures provided with Hardcaml are very flexible regarding the number of read and write ports they can provide Physically however FPGAs provide RAMs with 1 or 2 ports If you specify more than this you will probably not get the results you intended The library offers a more targeted solution for Xilinx FPGAs and may be more suitable for applications where precise control of the Vendor RAM primitive is required multiport_memory write_ports let clock Signal input clock 1 let address Signal input address 8 let write_enable Signal input write_enable 1 let data Signal input data 32 # let write_port Write_port write_clock clock write_address address write_enable write_enable write_data data val write_port Signal t Write_port t Hardcaml Write_port write_clock wire names clock width 1 write_address wire names address width 8 write_enable wire names write_enable width 1 write_data wire names data width 32 read_addresses # let read_address address val read_address Signal t wire names address width 8 # let q Signal multiport_memory 256 write_ports |write_port| read_addresses |read_address| val q Signal t array | memory_read_port width 32 memory multiport_memory read_addresses address | multiport_memory Ram # let read_port Read_port read_clock clock read_address read_enable Signal input read_enable 1 val read_port Signal t Read_port t Hardcaml Read_port read_clock wire names clock width 1 read_address wire names address width 8 read_enable wire names read_enable width 1 # let q Ram create collision_mode Read_before_write size 256 write_ports |write_port| read_ports |read_port| val q Signal t array | register width 32 clock clock clock_edge Rising enable read_enable data_in memory_read_port | hardcaml_xilinx</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Sequential logic is built from primitives such as registers and",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "memories.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "A key concept in sequential logic is the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "clock",
+        "type" : "InlinedCode"
+      }, {
+        "text" : ". Sequential logic",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "updates on the rising (or, less commonly, falling) edge of the clock and",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "holds its value throughout the clock cycle.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "reg_spec",
+      "additionalIds" : [ ],
+      "title" : "Reg_spec",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The clock and related reset and clear signals are grouped together in",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "a type called a ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Reg_spec/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "Reg_spec.t",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# open Hardcaml\n# let clock = Signal.input \"clock\" 1\nval clock : Signal.t = (wire (names (clock)) (width 1))\n# let clear = Signal.input \"clear\" 1\nval clear : Signal.t = (wire (names (clear)) (width 1))\n# let spec = Signal.Reg_spec.create ~clock ~clear ()\nval spec : Signal.Reg_spec.t = <abstr>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Multiple sequential elements are then able to refer to the same",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Reg_spec.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "registers-pipelines",
+      "additionalIds" : [ ],
+      "title" : "Registers, Pipelines",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A simple register takes a signal as input and basically delays it for one cycle.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let d_in = Signal.input \"d_in\" 8\nval d_in : Signal.t = (wire (names (d_in)) (width 8))\n# let q_out = Signal.reg spec ~enable:Signal.vdd d_in\nval q_out : Signal.t =\n  (register (width 8)\n ((clock clock) (clock_edge Rising) (clear clear) (clear_to 0b00000000))\n (data_in d_in))",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The pipeline function will delay its input for multiple cycles.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let q_out_after_3_clocks = Signal.pipeline spec ~enable:Signal.vdd ~n:3 d_in\nval q_out_after_3_clocks : Signal.t =\n  (register (width 8)\n ((clock clock) (clock_edge Rising) (clear clear) (clear_to 0b00000000))\n (data_in register))",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "registers-with-feedback",
+      "additionalIds" : [ ],
+      "title" : "Registers with Feedback",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We noted ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "/hardcaml-docs/designing-circuits/combinational_logic",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "previously",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " that combinational",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "logic could not contain cycles.  We can lift this restriction with",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "sequential logic so long as the cycle passes through a register (or memory).",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The function ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "reg_fb",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " encodes a simple example of this pattern. For",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "example, to build a counter, we need to access the current value to produce",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the next one.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let counter = Signal.reg_fb spec ~enable:Signal.vdd  ~width:8 ~f:(fun d -> Signal.(d +:. 1))\nval counter : Signal.t =\n  (register (width 8)\n ((clock clock) (clock_edge Rising) (clear clear) (clear_to 0b00000000))\n (data_in wire))",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "wires",
+      "additionalIds" : [ ],
+      "title" : "Wires",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In Hardcaml a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "wire",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is a signal which can be declared before",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "providing its input driver. Logically, it does nothing - it just",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "passes its input through to its output.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let w = Signal.wire 1;;\nval w : Signal.t = (wire (width 1))",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Wires can later be assigned an input driver.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Signal.(w <-- vdd);;\n- : unit = ()\n# w;;\n- : Signal.t = (wire (width 1) (data_in 0b1))",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Apart from the fact they logically do nothing, they are really useful!",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "It is how the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "reg_fb",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function is implemented.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let reg_fb spec ~enable ~w f =\n    let d = Signal.wire w in\n    let q = Signal.reg spec ~enable (f d) in\n    Signal.(d <-- q);\n    q\nval reg_fb :\n  Signal.Reg_spec.t ->\n  enable:Signal.t -> w:int -> (Signal.t -> Signal.t) -> Signal.t = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Without wires we cannot express the above function since the input",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "reg",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " refers to its own output.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Two words of caution when using wires.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 1,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Combinational cycles! We can't stop you from creating them, but we can",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "throw an exception when you do. It's worth repeating - cycles must",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "pass through a sequential primitive.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "The hairy unassigned wire exception. Hardcaml will detect when you",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "forget to assign a value to a wire, but the error will not be",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "especially useful in finding out where. You can",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "enable an extra level of debugging information by setting the",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "following ",
+              "type" : "SimpleText"
+            }, {
+              "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Caller_id/index.html",
+              "isFile" : false,
+              "type" : "Link",
+              "content" : [ {
+                "text" : "value",
+                "type" : "SimpleText"
+              } ]
+            }, {
+              "text" : ",",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "which will help track down where the wire was originally defined.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : "Caller_id.set_mode Top_of_stack",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "state-machines",
+      "additionalIds" : [ ],
+      "title" : "State Machines",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "State machines are just a complex combination of registers and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "multiplexers, so it is possible to build them directly with the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "primitives described here - but not very conveniently. Rather, we",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "recommend using the ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "/hardcaml-docs/more-on-circuit-design/always",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "Always DSL",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "memories",
+      "additionalIds" : [ ],
+      "title" : "Memories",
+      "type" : "Section",
+      "content" : [ {
+        "id" : "memories-core-asynchronous-memory-primitive",
+        "additionalIds" : [ "core-asynchronous-memory-primitive" ],
+        "level" : 2,
+        "title" : "Core asynchronous memory primitive",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Hardcaml provides the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "multiport_memory",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " primitive for describing",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "memory structures.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "They are synchronously written using ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "write_ports",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". Each write port",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "can have a different clock.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let clock = Signal.input \"clock\" 1;;\nlet address = Signal.input \"address\" 8;;\nlet write_enable = Signal.input \"write_enable\" 1;;\nlet data = Signal.input \"data\" 32;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let write_port =\n    { Write_port.write_clock = clock\n    ; write_address = address\n    ; write_enable = write_enable\n    ; write_data = data }\nval write_port : Signal.t Write_port.t =\n  {Hardcaml.Write_port.write_clock = (wire (names (clock)) (width 1));\n   write_address = (wire (names (address)) (width 8));\n   write_enable = (wire (names (write_enable)) (width 1));\n   write_data = (wire (names (data)) (width 32))}",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The memory is read asynchronously using ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "read_addresses",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". The read data",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "is returned as an array, one for each read port.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let read_address = address\nval read_address : Signal.t = (wire (names (address)) (width 8))\n# let q =\n    Signal.multiport_memory\n      256\n      ~write_ports:[|write_port|]\n      ~read_addresses:[|read_address|]\nval q : Signal.t array =\n  [|(memory_read_port (width 32)\n ((memory multiport_memory) (read_addresses address)))|]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "memories-rams",
+        "additionalIds" : [ "rams" ],
+        "level" : 2,
+        "title" : "RAMs",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "On their own, ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "multiport_memory",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "s are not that useful. Instead, we",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "provide the ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Ram/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "Ram",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "module, which can target the physical RAM blocks in",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "FPGAs (i.e. BlockRAM or UltraRAM in Xilinx devices).",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This is done by instantiating a multiport_memory and a register placed",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "on either the read address or output data. Note that this means the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "read ports are now synchronous and read data is returned one cycle",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "later.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let read_port =\n    { Read_port.read_clock = clock\n    ; read_address\n    ; read_enable = Signal.input \"read_enable\" 1 }\nval read_port : Signal.t Read_port.t =\n  {Hardcaml.Read_port.read_clock = (wire (names (clock)) (width 1));\n   read_address = (wire (names (address)) (width 8));\n   read_enable = (wire (names (read_enable)) (width 1))}",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Each read port can have a different clock.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let q =\n    Ram.create\n      ~collision_mode:Read_before_write\n      ~size:256\n      ~write_ports:[|write_port|]\n      ~read_ports:[|read_port|]\n      ()\nval q : Signal.t array =\n  [|(register (width 32) ((clock clock) (clock_edge Rising) (enable read_enable))\n (data_in memory_read_port))|]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "For this to work we use a feature of FPGA synthesizers called RTL RAM",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "inference. This process is notoriously finicky, so read the tool",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "reports to ensure it is doing what you expect (I'm looking at you,",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "Vivado!).",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "memories-practical-considerations",
+        "additionalIds" : [ "practical-considerations" ],
+        "level" : 2,
+        "title" : "Practical considerations",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The RAM structures provided with Hardcaml are very flexible regarding",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the number of read and write ports they can provide. Physically,",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "however, FPGAs provide RAMs with 1 or 2 ports. If you specify more",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "than this, you will probably not get the results you intended.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "https://github.com/janestreet/hardcaml_xilinx",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "hardcaml_xilinx",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "library offers a more targeted solution for Xilinx FPGAs and may be",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "more suitable for applications where precise control of the Vendor RAM",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "primitive is required.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443501,
+    "tocItem" : {
+      "chapterTitle" : "Designing Circuits",
+      "pageTitle" : "2.2 Sequential Logic",
+      "pageMeta" : {
+        "parent" : [ "designing_circuits.mdx" ],
+        "title" : [ "2.2 Sequential Logic" ],
+        "uuid" : [ "a7b1145b-f22e-343d-f4df-c564df972017" ]
+      },
+      "dirName" : "designing-circuits",
+      "fileName" : "sequential_logic",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Reg_spec",
+        "id" : "reg_spec",
+        "customAnchorId" : "reg_spec"
+      }, {
+        "title" : "Registers, Pipelines",
+        "id" : "registers-pipelines",
+        "customAnchorId" : "registers-pipelines"
+      }, {
+        "title" : "Registers with Feedback",
+        "id" : "registers-with-feedback",
+        "customAnchorId" : "registers-with-feedback"
+      }, {
+        "title" : "Wires",
+        "id" : "wires",
+        "customAnchorId" : "wires"
+      }, {
+        "title" : "State Machines",
+        "id" : "state-machines",
+        "customAnchorId" : "state-machines"
+      }, {
+        "title" : "Memories",
+        "id" : "memories",
+        "customAnchorId" : "memories"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

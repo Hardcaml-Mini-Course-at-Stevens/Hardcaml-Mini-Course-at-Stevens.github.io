@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 3.3 Interactive Viewer</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>Writing waveforms in expect tests can be very useful but does come with it s limitations In particular it is not really possible to print very long traces and designs with lots and lots of signals can become unwieldy As an alternative we can use the terminal based interactive waveform viewer</p>
+</article>
+
+<article>
+<header><h1>Building a Simulation Application</h1></header>
+<p>The interactive waveform viewer should be built as a top level application It should be linked with the library Waveforms are created in the normal way by wrapping a simulator with and then running a testbench The following function is used to run the viewer hardcaml_waveterm_interactive Hardcaml_waveterm Wavform create # Hardcaml_waveterm_interactive run waves</p>
+</article>
+
+<article>
+<header><h1>Using the Waveform Viewer</h1></header>
+<p>quits or scroll waveform horizontally or scroll waveform vertically decrease increase waveform scale will find the next prev transition on the highlighted signal save or load the current waveform configuration move the cursor increase decrease the signals pane size increase decrease the values pane size increase decrease the waves pane size Left clicking on the waveform will position a cursor and show the value of signals at that cycle in the values window All windows also have scroll bars that can be clicked on q escape left right ctrl mouse wheel up down mouse wheel e b s S h j k l 9 0 _</p>
+</article>
+
+<article>
+<header><h1>Interactive Waveforms from Expect Tests</h1></header>
+<p>Waveform based expect tests are very information limited We often either run very small simulations show a small portion of a larger simulation or zoom far out to capture general behavior Often we can see the behavior of control signals but not the detailed values on data buses To help with this the library can optionally serialize a waveform to disk It provides an function which is very similar to This provides an optional argument called which specifies the filename to which the waveform will be saved The suffix will be added By default waveforms are not saved To do so execute the tests with the following environment variable set Which will output a file in the same directory called To view the waveform a tool called is provided with in the directory Hardcaml_waveterm expect Hardcaml_waveterm Waveform print Hardcaml_waveterm Waveform expect serialize_to filename waves serialize_to hardcamlwaveform EXPECT_TEST_WAVEFORM 1 filename hardcamlwaveform waveform_viewer hardcaml_waveterm bin waveform_viewer exe show filename hardcamlwaveform</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Writing waveforms in expect tests can be very useful, but does come with it's",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "limitations. In particular it is not really possible to print very long traces, and",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "designs with lots and lots of signals can become unwieldy.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "As an alternative we can use the terminal based interactive waveform viewer.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "building-a-simulation-application",
+      "additionalIds" : [ ],
+      "title" : "Building a Simulation Application",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The interactive waveform viewer should be built as a top level application. It should be",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "linked with the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "url" : "https://github.com/janestreet/hardcaml_waveterm/tree/master/interactive",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "hardcaml_waveterm_interactive",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "library.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Waveforms are created in the normal way by wrapping a simulator with",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Hardcaml_waveterm.Wavform.create",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and then running a testbench.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The following function is used to run the viewer.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Hardcaml_waveterm_interactive.run waves",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "using-the-waveform-viewer",
+      "additionalIds" : [ ],
+      "title" : "Using the Waveform Viewer",
+      "type" : "Section",
+      "content" : [ {
+        "bulletMarker" : "*",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "q/escape",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " quits",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "left/right",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " or ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "ctrl+mouse-wheel",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " scroll waveform horizontally",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "up/down",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " or ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "mouse-wheel",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " scroll waveform vertically",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "-/=",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " decrease/increase waveform scale",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "e/b",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " will find the next/prev transition on the highlighted signal",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "s/S",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " save or load the current waveform configuration",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "h/j/k/l",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " move the cursor",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "9/(",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - increase/decrease the signals pane size",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "0/)",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - increase/decrease the values pane size",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "_/+",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - increase/decrease the waves pane size",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Left clicking on the waveform will position a cursor and show the value of signals at that",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "cycle in the values window.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "All windows also have scroll bars that can be clicked on.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "interactive-waveforms-from-expect-tests",
+      "additionalIds" : [ ],
+      "title" : "Interactive Waveforms from Expect Tests",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Waveform-based expect tests are very information limited. We often either run very small",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "simulations, show a small portion of a larger simulation, or zoom far out to capture",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "general behavior. Often we can see the behavior of control signals but not the detailed",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "values on data buses.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To help with this, the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hardcaml_waveterm",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " library can optionally serialize a waveform to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "disk. It provides an ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "expect",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function which is very similar to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Hardcaml_waveterm.Waveform.print",
+          "type" : "InlinedCode"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "Hardcaml_waveterm.Waveform.expect ~serialize_to:\"filename\" waves",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This provides an optional argument called ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "serialize_to",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " which specifies the filename to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "which the waveform will be saved. The suffix ",
+          "type" : "SimpleText"
+        }, {
+          "code" : ".hardcamlwaveform",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " will be added.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "By default, waveforms are not saved. To do so execute the tests with the following",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "environment variable set.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : "EXPECT_TEST_WAVEFORM=1",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Which will output a file in the same directory called ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "filename.hardcamlwaveform",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To view the waveform, a tool called ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "waveform_viewer",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is provided with ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "hardcaml_waveterm",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "in the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "bin",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " directory.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : "waveform_viewer.exe show filename.hardcamlwaveform",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709444242,
+    "tocItem" : {
+      "chapterTitle" : "Simulating Circuits",
+      "pageTitle" : "3.3 Interactive Viewer",
+      "pageMeta" : {
+        "parent" : [ "simulating_circuits.mdx" ],
+        "title" : [ "3.3 Interactive Viewer" ],
+        "uuid" : [ "1f38c61f-c790-3c87-737e-c7f38b3fd27f" ]
+      },
+      "dirName" : "simulating-circuits",
+      "fileName" : "waveterm_interactive_viewer",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Building a Simulation Application",
+        "id" : "building-a-simulation-application",
+        "customAnchorId" : "building-a-simulation-application"
+      }, {
+        "title" : "Using the Waveform Viewer",
+        "id" : "using-the-waveform-viewer",
+        "customAnchorId" : "using-the-waveform-viewer"
+      }, {
+        "title" : "Interactive Waveforms from Expect Tests",
+        "id" : "interactive-waveforms-from-expect-tests",
+        "customAnchorId" : "interactive-waveforms-from-expect-tests"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

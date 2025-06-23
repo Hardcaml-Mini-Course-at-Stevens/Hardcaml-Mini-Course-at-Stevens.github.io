@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 4.6 How Hardcaml Converts Signals</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>Hardcaml defines an OCaml variant type called which expresses the RTL structures it can describe How this is converted to RTL explains a lot about the various choices we make in the Hardcaml API Below we will show how every variant in is converted to Verilog Conversion to VHDL is very similar Note that this really is all of the primitives in Hardcaml There are not very many and all other features of Hardcaml are built atop them The correctness of the generated code will depend on rules that Hardcaml enforces and we will highlight where that is the case The following rules are applied in order to try to make the resulting Verilog constructs trivial to understand Widths of arguments are restricted so we do not have to understand any weird Verilog auto conversion rules The width of the LHS and RHS of assignments are nearly always the same comparison and multiplication being exceptions Assignments are complete which generally means where we generate a Verilog construct we will include a branch Signal Type t Signal Type t case default</p>
+</article>
+
+<article>
+<header><h1>Simple Operations</h1></header>
+<p>We will quickly go through a number of simple operations which convert trivially to RTL Constants Constants are always written in binary form Concatenation The width of the result is the sum of the width of all the elements in the concatenation Wires Wires just make a copy The only interesting thing in the generated RTL is that wires are declared before they are assigned which is a requirement to allow them to perform cyclic references Select The rules of the Hardcaml function ensure that the Verilog selection cannot access out of range bits wire 4 0 _123 assign _123 5 b10001 wire 23 0 _123 assign _123 _33 _87 _43 wire 3 0 a_wire assign a_wire _123 wire 2 0 _123 assign _123 _55 3 1 select</p>
+</article>
+
+<article>
+<header><h1>Arithmetic Operators</h1></header>
+<p>Addition and subtraction The Hardcaml rules are that the arguments and result must all be of the same width Thus we write Given and are the same size as the result it doesn t matter if we consider them to be signed or unsigned the resulting bit pattern is the same The same is true of subtraction Multiplication We must differentiate between signed and unsigned multiplication For unsigned we write By default Verilog performs unsigned multiplication The result width is the sum of the width of the arguments To perform signed multiplication we write wire 7 0 _123 assign _123 a b a b wire 8 0 _123 assign _123 a * b wire 8 0 _123 assign _123 $signed a * $signed b</p>
+</article>
+
+<article>
+<header><h1>Logical Operators</h1></header>
+<p>The and logical operations are defined similarly to addition and subtraction in that the result and arguments must have the same width is also similar except that it only has one argument and or xor wire 7 0 _123 assign _123 a ^ b not wire 7 0 _123 assign _123 a</p>
+</article>
+
+<article>
+<header><h1>Comparison Operators</h1></header>
+<p>Hardcaml provides 2 comparison operators equals and unsigned less than The result of both is a single bit The arguments are the same width And less than Hardcaml synthesizes the full set of comparison operators for both signed and unsigned arguments using these two primitives and the operator wire _123 assign _123 a b wire _123 assign _123 a &lt; b not</p>
+</article>
+
+<article>
+<header><h1>Mux</h1></header>
+<p>A Hardcaml mux takes a select signal and some number of data inputs The final data input is repeated enough times to create a complete mux structure For example our select could be 3 bits and we provide 5 data inputs The last value will be repeated and used for indices 5 6 and 7 These rules are encoded by using a case statement with a default branch Even if the case is complete a default branch is written case select 0 _123 &lt; _1 1 _123 &lt; _2 2 _123 &lt; _3 3 _123 &lt; _4 default _123 &lt; _5 endcase case select 0 _123 &lt; _1 1 _123 &lt; _2 2 _123 &lt; _3 3 _123 &lt; _4 4 _123 &lt; _5 5 _123 &lt; _6 6 _123 &lt; _7 default _123 &lt; _8 endcase</p>
+</article>
+
+<article>
+<header><h1>Cases</h1></header>
+<p>The Hardcaml variant also generates a Verilog case statement but the branch match values do not have to be successively incrementing constants starting at 0 as with a mux We do however need to provide a default value As with muxes we ensure that no matter what select value is provided the result value must be driven Cases case select 3 _123 &lt; _1 7 _123 &lt; _2 9 _123 &lt; _4 default _123 &lt; _5 endcase</p>
+</article>
+
+<article>
+<header><h1>Registers</h1></header>
+<p>Register are written using the following general template The asynchronous reset synchronous clear and enable are all optional If they are not present Hardcaml will not write out that part of the template reset clear and enable must all be 1 bit wide The register input value reset to value and clear to value are all the same width as the result value Hardcaml further supports negative edge clocks always @ posedge clock posedge reset if reset 1 b1 q &lt; 1 b0 else if clear 1 b1 q &lt; 1 b0 else if enable 1 b1 q &lt; d</p>
+</article>
+
+<article>
+<header><h1>Memories</h1></header>
+<p>Hardcaml memories are defined in two parts the memory array itself along with its write logic and one or more read ports These memory structures describe asynchronous read memories that may be converted to synchronous by registering the address es or output port s Hardcaml memories may have multiple read and or write ports though only specific instances will be inferred into actual hardware memories otherwise we describe potentially inefficient register banks The above may be written once for each provided write port Read ports are written as Again we will get similar code for each read port reg 7 0 mem 0 3 always @ posedge clock if write_enable mem write_address &lt; write_data assign q mem read_address</p>
+</article>
+
+<article>
+<header><h1>Instantiations</h1></header>
+<p>Instantiations are written into the RTL following the specification of inputs and outputs given in Hardcaml Note that there is a single output vector defined for all the output ports from which each individual output will then be selected This makes the traversal of the Hardcaml signal graph simpler at the cost of slightly more verbose RTL foo the_foo i i o1 _123 3 0 o2 _123 5 3</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Hardcaml defines an OCaml variant type called ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Signal.Type.t",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " which expresses the RTL",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "structures it can describe. How this is converted to RTL explains a lot about the various",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "choices we make in the Hardcaml API.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Below we will show how every variant in ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "Signal.Type.t",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " is converted to Verilog.",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "Conversion to VHDL is very similar. Note that this really is all of the primitives in",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "Hardcaml! There are not very many, and all other features of Hardcaml are built atop them.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The correctness of the generated code will depend on rules that Hardcaml enforces and we",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "will highlight where that is the case. The following rules are applied in order to try to",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "make the resulting Verilog constructs trivial to understand.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "bulletMarker" : "-",
+      "tight" : true,
+      "type" : "BulletList",
+      "content" : [ {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Widths of arguments are restricted so we do not have to understand any weird Verilog",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "auto-conversion rules.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "The width of the LHS and RHS of assignments are nearly always the same (comparison and",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "multiplication being exceptions).",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "type" : "ListItem",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "Assignments are ",
+            "type" : "SimpleText"
+          }, {
+            "type" : "Emphasis",
+            "content" : [ {
+              "text" : "complete",
+              "type" : "SimpleText"
+            } ]
+          }, {
+            "text" : " which generally means where we generate a Verilog ",
+            "type" : "SimpleText"
+          }, {
+            "code" : "case",
+            "type" : "InlinedCode"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "construct, we will include a ",
+            "type" : "SimpleText"
+          }, {
+            "code" : "default",
+            "type" : "InlinedCode"
+          }, {
+            "text" : " branch.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      } ]
+    }, {
+      "id" : "simple-operations",
+      "additionalIds" : [ ],
+      "title" : "Simple Operations",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We will quickly go through a number of simple operations which convert trivially to RTL.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "simple-operations-constants",
+        "additionalIds" : [ "constants" ],
+        "level" : 2,
+        "title" : "Constants",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Constants are always written in binary form.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "wire [4:0] _123;\nassign _123 = 5'b10001;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "simple-operations-concatenation",
+        "additionalIds" : [ "concatenation" ],
+        "level" : 2,
+        "title" : "Concatenation",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "verilog",
+        "snippet" : "wire [23:0] _123;\nassign _123 = { _33, _87; _43 };",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The width of the result is the sum of the width of all the elements in the concatenation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "simple-operations-wires",
+        "additionalIds" : [ "wires" ],
+        "level" : 2,
+        "title" : "Wires",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Wires just make a copy. The only interesting thing in the generated RTL is that wires are",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "declared before they are assigned, which is a requirement to allow them to perform cyclic",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "references.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "wire [3:0] a_wire;\n\nassign a_wire = _123;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "simple-operations-select",
+        "additionalIds" : [ "select" ],
+        "level" : 2,
+        "title" : "Select",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "verilog",
+        "snippet" : "wire [2:0] _123;\n\nassign _123 = _55[3:1];",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The rules of the Hardcaml ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "select",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function ensure that the Verilog selection cannot",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "access out of range bits.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "arithmetic-operators",
+      "additionalIds" : [ ],
+      "title" : "Arithmetic Operators",
+      "type" : "Section",
+      "content" : [ {
+        "id" : "arithmetic-operators-addition-and-subtraction",
+        "additionalIds" : [ "addition-and-subtraction" ],
+        "level" : 2,
+        "title" : "Addition and subtraction",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The Hardcaml rules are that the arguments and result must all be of the same width. Thus",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "we write:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "wire [7:0] _123;\n\nassign _123 = a + b;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Given ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "a",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "b",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " are the same size as the result it doesn't matter if we consider them to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "be signed or unsigned - the resulting bit pattern is the same.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The same is true of subtraction.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "arithmetic-operators-multiplication",
+        "additionalIds" : [ "multiplication" ],
+        "level" : 2,
+        "title" : "Multiplication",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We must differentiate between signed and unsigned multiplication. For unsigned we write:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "wire [8:0] _123;\n\nassign _123 = a * b;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "By default Verilog performs unsigned multiplication. The result width is the sum of the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "width of the arguments.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To perform signed multiplication we write:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "wire [8:0] _123;\n\nassign _123 = $signed(a) * $signed(b);",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "logical-operators",
+      "additionalIds" : [ ],
+      "title" : "Logical Operators",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "and",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "or",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "xor",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " logical operations are defined similarly to addition and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "subtraction in that the result and arguments must have the same width.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "wire [7:0] _123;\n\nassign _123 = a ^ b;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "not",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is also similar except that it only has one argument.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "wire [7:0] _123;\n\nassign _123 = ~a;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "comparison-operators",
+      "additionalIds" : [ ],
+      "title" : "Comparison Operators",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Hardcaml provides 2 comparison operators - equals and unsigned less than. The result of",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "both is a single bit. The arguments are the same width.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "wire _123;\n\nassign _123 = a == b;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "And less than:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "wire _123;\n\nassign _123 = a < b;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Hardcaml synthesizes the full set of comparison operators for both signed and unsigned",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "arguments using these two primitives and the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "not",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " operator.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "mux",
+      "additionalIds" : [ ],
+      "title" : "Mux",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A Hardcaml mux takes a select signal and some number of data inputs. The final data input",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "is repeated enough times to create a complete mux structure. For example, our select could",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "be 3 bits and we provide 5 data inputs. The last value will be repeated and used for",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "indices 5, 6, and 7.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "These rules are encoded by using a case statement with a default branch.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "case (select)\n0: _123 <= _1;\n1: _123 <= _2;\n2: _123 <= _3;\n3: _123 <= _4;\ndefault: _123 <= _5;\nendcase",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Even if the case is complete, a default branch is written.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "case (select)\n0: _123 <= _1;\n1: _123 <= _2;\n2: _123 <= _3;\n3: _123 <= _4;\n4: _123 <= _5;\n5: _123 <= _6;\n6: _123 <= _7;\ndefault: _123 <= _8;\nendcase",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "cases",
+      "additionalIds" : [ ],
+      "title" : "Cases",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The Hardcaml ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Cases",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " variant also generates a Verilog case statement, but the branch match",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "values do not have to be successively incrementing constants starting at 0 as with a mux.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "case (select)\n3: _123 <= _1;\n7: _123 <= _2;\n9: _123 <= _4\ndefault: _123 <= _5;\nendcase",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We do, however, need to provide a default value. As with muxes we ensure that no matter",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "what select value is provided, the result value ",
+          "type" : "SimpleText"
+        }, {
+          "type" : "Emphasis",
+          "content" : [ {
+            "text" : "must",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " be driven.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "registers",
+      "additionalIds" : [ ],
+      "title" : "Registers",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Register are written using the following general template:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "always @(posedge clock, posedge reset)\n  if (reset == 1'b1) q <= 1'b0;\n  else if (clear == 1'b1) q <= 1'b0;\n  else if (enable == 1'b1) q <= d;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The asynchronous reset, synchronous clear and enable are all optional. If they are not",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "present Hardcaml will not write out that part of the template.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "reset, clear and enable must all be 1 bit wide. The register input value, reset to value",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "and clear to value are all the same width as the result value.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Hardcaml further supports negative edge clocks.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "memories",
+      "additionalIds" : [ ],
+      "title" : "Memories",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Hardcaml memories are defined in two parts - the memory array itself along with its write",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "logic and one or more read ports.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "These memory structures describe asynchronous read memories that may be converted to",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "synchronous by registering the address(es) or output port(s).",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Hardcaml memories may have multiple read and/or write ports, though only specific",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "instances will be inferred into actual hardware memories (otherwise we describe",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "potentially inefficient register banks).",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "reg [7:0] mem [0:3];\n\nalways @(posedge clock)\n  if (write_enable)\n    mem[write_address] <= write_data;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The above may be written once for each provided write port.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Read ports are written as:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "assign q = mem[read_address];",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Again, we will get similar code for each read port.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "instantiations",
+      "additionalIds" : [ ],
+      "title" : "Instantiations",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Instantiations are written into the RTL following the specification of inputs and outputs",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "given in Hardcaml.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "verilog",
+        "snippet" : "foo the_foo (.i(i), .o1(_123[3:0]), .o2(_123[5:3]));",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Note that there is a single output vector defined for all the output ports from which each",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "individual output will then be selected. This makes the traversal of the Hardcaml signal",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "graph simpler, at the cost of slightly more verbose RTL.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443676,
+    "tocItem" : {
+      "chapterTitle" : "More On Circuit Design",
+      "pageTitle" : "4.6 How Hardcaml Converts Signals",
+      "pageMeta" : {
+        "parent" : [ "more_design.mdx" ],
+        "title" : [ "4.6 How Hardcaml Converts Signals" ],
+        "uuid" : [ "fdac4970-6add-369c-6fc6-1c7d6dd71390" ]
+      },
+      "dirName" : "more-on-circuit-design",
+      "fileName" : "conversion-to-rtl",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Simple Operations",
+        "id" : "simple-operations",
+        "customAnchorId" : "simple-operations"
+      }, {
+        "title" : "Arithmetic Operators",
+        "id" : "arithmetic-operators",
+        "customAnchorId" : "arithmetic-operators"
+      }, {
+        "title" : "Logical Operators",
+        "id" : "logical-operators",
+        "customAnchorId" : "logical-operators"
+      }, {
+        "title" : "Comparison Operators",
+        "id" : "comparison-operators",
+        "customAnchorId" : "comparison-operators"
+      }, {
+        "title" : "Mux",
+        "id" : "mux",
+        "customAnchorId" : "mux"
+      }, {
+        "title" : "Cases",
+        "id" : "cases",
+        "customAnchorId" : "cases"
+      }, {
+        "title" : "Registers",
+        "id" : "registers",
+        "customAnchorId" : "registers"
+      }, {
+        "title" : "Memories",
+        "id" : "memories",
+        "customAnchorId" : "memories"
+      }, {
+        "title" : "Instantiations",
+        "id" : "instantiations",
+        "customAnchorId" : "instantiations"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

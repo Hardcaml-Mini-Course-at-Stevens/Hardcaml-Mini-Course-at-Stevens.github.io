@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 4.3.2 Double Dabble</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>We previously saw how to convert a BCD value to binary using a simple multiply by 10 scheme We d now like to convert the other way from binary to BCD Conceptually this is a bit harder to achieve we could do division by 10 with remainder to calculate the result but we tend to shy away from dividers where possible in hardware to be fair an iterative divider would probably work It turns out there is a clever way of doing this called the Double Dabble algorithm no really</p>
+</article>
+
+<article>
+<header><h1>Double, then Dabble</h1></header>
+<p>The idea is we form a large shift register with the BCD values at the MSB and the binary value at the LSB We shift the whole thing left by one bit this is the double part then run through each of the 4 bit BCD values and if it is greater then 4 add 3 Repeat for all the bits in the input binary value One way to think of this is we are bypassing the carry logic of a normal binary number and adding a special value which upon doubling will correctly overflow into the next BCD digit The algorithm is shown below while the idea is not complicated there is a bunch of annoying bit fiddling going on in order to pack and then extract the appropriate bits from an int value BCDN BCD1 BCD0 BINARY let double_dabble value let digits String length Int to_string value in let num_bits Int ceil_log2 value 1 in let value ref value in for _ 0 to num_bits 1 do for j 0 to digits 1 do let digit value lsr num_bits j * 4 land 0xf in if digit &gt; 5 then value value 3 lsl num_bits j * 4 done value value lsl 1 done let bcd value lsr num_bits in List init digits f fun i &gt; bcd lsr i * 4 land 0xf |&gt; List rev |&gt; List map f fun i &gt; Char of_int_exn i Char to_int 0 |&gt; String of_char_list let%expect_test Test algorithm for i 0 to 1000 do assert String equal Int to_string i double_dabble i done %expect | |</p>
+</article>
+
+<article>
+<header><h1>Implementing the Hardware</h1></header>
+<p>A state machine will implement the algorithm There are 3 states wait for a signal to be valid along with the binary value to convert shift the binary value and all the BCD digits up by 1 bits Go to if all the input bits are processed otherwise go to iterate through the BCD digits if the value is greater than 4 then add 3 Go back to In we need to shift up the BCD values This is done by selecting the msb of the previous bcd register and shifting it in expect for index 0 where we select the msb of the input binary value In we iterate through each BCD digit if we have 3 digits it will take 3 cycles On each cycle we use to enable the write to the appropriate BCD digit register This is created using the function which converts values as follows &gt; &gt; &gt; &gt; We could have implemented the write enable check as but the onehot version is a bit more efficient Finally note that we write the value to every BCD digit register guarded by the write enable This value is created by multiplexing the BCD registers based on then performing the dabble check This is important there is only one instantiation of the check not one per digit Start start Double Start Dabble Dabble Double module Make Digits sig val num_digits int end struct open Digits * Bits required to represent 999 999 * let binary_bits num_bits_to_represent Int pow 10 num_digits 1 module State struct type t | Start | Double | Dabble @@deriving sexp_of compare localize enumerate end let create clock start binary_in let spec Reg_spec create clock in * Registers to latch the input binary value and count through it s bits * let binary Always Variable reg spec width binary_bits in let bit_count Always Variable reg spec width Int ceil_log2 binary_bits in * Register to count through digits while dabbling * let digit_count Always Variable reg spec width Int ceil_log2 num_digits in * One digit count to use as a register write enable for the BCD digits * let digit_count_one_hot binary_to_onehot digit_count value in * Registers for the BCD digit * let bcd Array init num_digits f fun _ &gt; Always Variable reg spec width 4 in * Dabbling logic look up the current BCD digit and perform dabble operation if greater than 4 * let bcd_dabbled let digit mux digit_count value List map Array to_list bcd f fun bcd &gt; bcd value in mux2 digit &gt; 4 digit 3 digit in * Statemachine * let sm Always State_machine create module State spec in Always compile sm switch Start * Wait for start * bit_count &lt; 0 binary &lt; binary_in proc List init num_digits f fun digit &gt; bcd digit &lt; 0 when_ start sm set_next Double Double * Shift in the next binary bit through all the BCD registers * binary &lt; sll binary value by 1 proc List init num_digits f fun digit &gt; bcd digit &lt; lsbs bcd digit value @ if digit 0 then msb binary value else msb bcd digit 1 value digit_count &lt; 0 bit_count &lt; bit_count value 1 * Count through all the input binary bits * if_ bit_count value binary_bits 1 sm set_next Start sm set_next Dabble Dabble * Iterate through each digit and perform the dabble operation * digit_count &lt; digit_count value 1 proc List init num_digits f fun digit &gt; when_ digit_count_one_hot digit bcd digit &lt; bcd_dabbled when_ digit_count value num_digits 1 sm set_next Double sm is Start Array map bcd f fun bcd &gt; bcd value end Double Dabble digit_count_one_hot binary_to_onehot 00 0001 01 0010 10 0100 11 1000 digit_count value index bcd_dabbled digit_count</p>
+</article>
+
+<article>
+<header><h1>Testing</h1></header>
+<p>We need to create a a simulator and provide access to the input and output ports The following code does this We will soon learn about which makes a lot of this boilerplate code go away There is nothing interesting going on here just definition of string names for circuit ports then constructing a simulator and looking up the ports Below we write exhaustive testbenches for 2 3 and 4 digit conversions Circuit Cyclesim Interfaces module Make_sim Digits sig val num_digits int end struct open Digits include Make Digits let circuit let done_ bcd create clock input clock 1 start input start 1 binary_in input binary binary_bits in Circuit create_exn name double_dabble output done done_ Array to_list Array mapi bcd f fun i &gt; output %string bcd% i#Int type ports start Bits t ref binary_in Bits t ref done_ Bits t ref bcd Bits t ref array let sim let sim Cyclesim create circuit in sim start Cyclesim in_port sim start binary_in Cyclesim in_port sim binary done_ Cyclesim out_port sim done bcd Array init num_digits f fun i &gt; Cyclesim out_port sim %string bcd% i#Int end let create_test num_digits let module Bcd Make_sim struct let num_digits num_digits end in let open Bits in let sim ports Bcd sim in Cyclesim cycle sim let test value * Start the statemachine * ports start Bits vdd ports binary_in &lt; value Cyclesim cycle sim ports start Bits gnd * Wait for it to complete * while not Bits to_bool ports done_ do Cyclesim cycle sim done * Convert the BCD output to a string * Array map ports bcd f fun bcd &gt; Char of_int_exn Bits to_unsigned_int bcd Char to_int 0 |&gt; Array to_list |&gt; List rev |&gt; String of_list in test let%expect_test 2 digits let num_digits 2 in let test create_test num_digits in for i 0 to Int pow 10 num_digits 1 do assert Int of_string test i i done %expect | | let%expect_test 3 digits let num_digits 3 in let test create_test num_digits in for i 0 to Int pow 10 num_digits 1 do assert Int of_string test i i done %expect | | let%expect_test 4 digits let num_digits 4 in let test create_test num_digits in for i 0 to Int pow 10 num_digits 1 do assert Int of_string test i i done %expect | |</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "We previously saw how to convert a BCD value to binary using a simple multiply by 10",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "scheme. We'd now like to convert the other way - from binary to BCD.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Conceptually this is a bit harder to achieve - we could do division by 10 with remainder",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "to calculate the result, but we tend to shy away from dividers where possible in hardware",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "(to be fair an iterative divider would probably work). It turns out there is a clever way",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "of doing this called the Double Dabble algorithm (no, really!).",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "double-then-dabble",
+      "additionalIds" : [ ],
+      "title" : "Double, then Dabble",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The idea is we form a large shift register with the BCD values at the MSB and the binary value at the LSB.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : "[BCDN]...[BCD1][BCD0][...BINARY..]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We shift the whole thing left by one bit (this is the double part), then run through each",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "of the 4 bit BCD values and if it is greater then 4, add 3. Repeat for all the bits in the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "input binary value.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "One way to think of this is we are bypassing the carry logic of a normal binary number and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "adding a special value which, upon doubling, will correctly overflow into the next BCD",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "digit.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The algorithm is shown below - while the idea is not complicated there is a bunch of",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "annoying bit fiddling going on in order to pack and then extract the appropriate bits from",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "an int value.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let double_dabble value =\n  let digits = String.length (Int.to_string value) in\n  let num_bits = Int.ceil_log2 (value + 1) in\n  let value = ref value in\n  for _ = 0 to num_bits - 1 do\n    for j = 0 to digits - 1 do\n      let digit = (!value lsr (num_bits + (j * 4))) land 0xf in\n      if digit >= 5 then value := !value + (3 lsl (num_bits + (j * 4)))\n    done;\n    value := !value lsl 1\n  done;\n  let bcd = !value lsr num_bits in\n  List.init digits ~f:(fun i -> (bcd lsr (i * 4)) land 0xf)\n  |> List.rev\n  |> List.map ~f:(fun i -> Char.of_int_exn (i + Char.to_int '0'))\n  |> String.of_char_list\n;;\n\nlet%expect_test \"Test algorithm\" =\n  for i = 0 to 1000 do\n    assert (String.equal (Int.to_string i) (double_dabble i))\n  done;\n  [%expect {| |}]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "implementing-the-hardware",
+      "additionalIds" : [ ],
+      "title" : "Implementing the Hardware",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A state machine will implement the algorithm.  There are 3 states",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "Start",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - wait for a ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "start",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " signal to be valid along with the binary value to convert.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "Double",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - shift the binary value and all the BCD digits up by 1 bits. Go to ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Start",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " if",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "all the input bits are processed, otherwise go to ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Dabble",
+              "type" : "InlinedCode"
+            }, {
+              "text" : ".",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "Dabble",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " - iterate through the BCD digits - if the value is greater than 4 then add 3.",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "Go back to ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Double",
+              "type" : "InlinedCode"
+            }, {
+              "text" : ".",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Make (Digits : sig\n    val num_digits : int\n  end) =\nstruct\n  open Digits\n\n  (* Bits required to represent [999...999]. *)\n  let binary_bits = num_bits_to_represent (Int.pow 10 num_digits - 1)\n\n  module State = struct\n    type t =\n      | Start\n      | Double\n      | Dabble\n    [@@deriving sexp_of, compare ~localize, enumerate]\n  end\n\n  let create ~clock ~start ~binary_in =\n    let spec = Reg_spec.create ~clock () in\n    (* Registers to latch the input binary value and count through it's bits. *)\n    let binary = Always.Variable.reg spec ~width:binary_bits in\n    let bit_count = Always.Variable.reg spec ~width:(Int.ceil_log2 binary_bits) in\n    (* Register to count through digits while dabbling. *)\n    let digit_count = Always.Variable.reg spec ~width:(Int.ceil_log2 num_digits) in\n    (* One digit count to use as a register write enable for the BCD digits. *)\n    let digit_count_one_hot = binary_to_onehot digit_count.value in\n    (* Registers for the BCD digit. *)\n    let bcd = Array.init num_digits ~f:(fun _ -> Always.Variable.reg spec ~width:4) in\n    (* Dabbling logic - look up the current BCD digit and perform dabble operation if\n       greater than 4. *)\n    let bcd_dabbled =\n      let digit =\n        mux digit_count.value (List.map (Array.to_list bcd) ~f:(fun bcd -> bcd.value))\n      in\n      mux2 (digit >:. 4) (digit +:. 3) digit\n    in\n    (* Statemachine *)\n    let sm = Always.State_machine.create (module State) spec in\n    Always.(\n      compile\n        [ sm.switch\n            [ ( Start\n              , [ (* Wait for start. *)\n                  bit_count <--. 0\n                ; binary <-- binary_in\n                ; proc (List.init num_digits ~f:(fun digit -> bcd.(digit) <--. 0))\n                ; when_ start [ sm.set_next Double ]\n                ] )\n            ; ( Double\n              , [ (* Shift in the next binary bit through all the BCD registers. *)\n                  binary <-- sll binary.value ~by:1\n                ; proc\n                    (List.init num_digits ~f:(fun digit ->\n                       bcd.(digit)\n                       <-- lsbs bcd.(digit).value\n                           @:\n                           if digit = 0\n                           then msb binary.value\n                           else msb bcd.(digit - 1).value))\n                ; digit_count <--. 0\n                ; bit_count <-- bit_count.value +:. 1\n                ; (* Count through all the input binary bits. *)\n                  if_\n                    (bit_count.value ==:. binary_bits - 1)\n                    [ sm.set_next Start ]\n                    [ sm.set_next Dabble ]\n                ] )\n            ; ( Dabble\n              , [ (* Iterate through each digit and perform the dabble operation. *)\n                  digit_count <-- digit_count.value +:. 1\n                ; proc\n                    (List.init num_digits ~f:(fun digit ->\n                       when_ digit_count_one_hot.:(digit) [ bcd.(digit) <-- bcd_dabbled ]))\n                ; when_ (digit_count.value ==:. num_digits - 1) [ sm.set_next Double ]\n                ] )\n            ]\n        ]);\n    sm.is Start, Array.map bcd ~f:(fun bcd -> bcd.value)\n  ;;\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Double",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " we need to shift up the BCD values. This is done by selecting the msb of the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "previous bcd register and shifting it in - expect for index 0 where we select the msb of",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the input binary value.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Dabble",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " we iterate through each BCD digit - if we have 3 digits, it will take 3",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "cycles. On each cycle we use ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "digit_count_one_hot",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " to enable the write to the appropriate",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "BCD digit register. This is created using the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "binary_to_onehot",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " function which converts",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "values as follows:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "00",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " -> ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "0001",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "01",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " -> ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "0010",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "10",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " -> ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "0100",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "11",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " -> ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "1000",
+              "type" : "InlinedCode"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We could have implemented the write enable check as ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "digit_count.value ==:. index",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " but the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "onehot version is a bit more efficient.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Finally, note that we write the value ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "bcd_dabbled",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " to every BCD digit register (guarded",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "by the write enable). This value is created by multiplexing the BCD registers based on",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "digit_count",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " then performing the dabble check. This is important - there is only one",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "instantiation of the check, not one per digit.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "testing",
+      "additionalIds" : [ ],
+      "title" : "Testing",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We need to create a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Circuit",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Cyclesim",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " simulator and provide access to the input and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "output ports. The following code does this. We will soon learn about ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Interfaces",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " which",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "makes a lot of this boilerplate code go away.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Make_sim (Digits : sig\n    val num_digits : int\n  end) =\nstruct\n  open Digits\n  include Make (Digits)\n\n  let circuit () =\n    let done_, bcd =\n      create\n        ~clock:(input \"clock\" 1)\n        ~start:(input \"start\" 1)\n        ~binary_in:(input \"binary\" binary_bits)\n    in\n    Circuit.create_exn\n      ~name:\"double_dabble\"\n      (output \"done\" done_\n       :: Array.to_list (Array.mapi bcd ~f:(fun i -> output [%string \"bcd%{i#Int}\"])))\n  ;;\n\n  type ports =\n    { start : Bits.t ref\n    ; binary_in : Bits.t ref\n    ; done_ : Bits.t ref\n    ; bcd : Bits.t ref array\n    }\n\n  let sim () =\n    let sim = Cyclesim.create (circuit ()) in\n    ( sim\n    , { start = Cyclesim.in_port sim \"start\"\n      ; binary_in = Cyclesim.in_port sim \"binary\"\n      ; done_ = Cyclesim.out_port sim \"done\"\n      ; bcd =\n          Array.init num_digits ~f:(fun i ->\n            Cyclesim.out_port sim [%string \"bcd%{i#Int}\"])\n      } )\n  ;;\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "There is nothing interesting going on here, just definition of string names for circuit ports,",
+          "type" : "SimpleText"
+        }, {
+          "type" : "HardLineBreak"
+        }, {
+          "text" : "then constructing a simulator and looking up the ports.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Below we write exhaustive testbenches for 2, 3, and 4 digit conversions.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let create_test num_digits =\n  let module Bcd =\n    Make_sim (struct\n      let num_digits = num_digits\n    end)\n  in\n  let open Bits in\n  let sim, ports = Bcd.sim () in\n  Cyclesim.cycle sim;\n  let test value =\n    (* Start the statemachine. *)\n    ports.start := Bits.vdd;\n    ports.binary_in <--. value;\n    Cyclesim.cycle sim;\n    ports.start := Bits.gnd;\n    (* Wait for it to complete. *)\n    while not (Bits.to_bool !(ports.done_)) do\n      Cyclesim.cycle sim\n    done;\n    (* Convert the BCD output to a string. *)\n    Array.map ports.bcd ~f:(fun bcd ->\n      Char.of_int_exn (Bits.to_unsigned_int !bcd + Char.to_int '0'))\n    |> Array.to_list\n    |> List.rev\n    |> String.of_list\n  in\n  test\n;;\n\nlet%expect_test \"2 digits\" =\n  let num_digits = 2 in\n  let test = create_test num_digits in\n  for i = 0 to Int.pow 10 num_digits - 1 do\n    assert (Int.of_string (test i) = i)\n  done;\n  [%expect {| |}]\n;;\n\nlet%expect_test \"3 digits\" =\n  let num_digits = 3 in\n  let test = create_test num_digits in\n  for i = 0 to Int.pow 10 num_digits - 1 do\n    assert (Int.of_string (test i) = i)\n  done;\n  [%expect {| |}]\n;;\n\nlet%expect_test \"4 digits\" =\n  let num_digits = 4 in\n  let test = create_test num_digits in\n  for i = 0 to Int.pow 10 num_digits - 1 do\n    assert (Int.of_string (test i) = i)\n  done;\n  [%expect {| |}]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443724,
+    "tocItem" : {
+      "chapterTitle" : "More On Circuit Design",
+      "pageTitle" : "4.3.2 Double Dabble",
+      "pageMeta" : {
+        "parent" : [ "state_machine_always_api.mdx" ],
+        "title" : [ "4.3.2 Double Dabble" ],
+        "uuid" : [ "eaaa4bce-21f3-3f45-2ef9-590c98a09851" ]
+      },
+      "dirName" : "more-on-circuit-design",
+      "fileName" : "double_dabble",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Double, then Dabble",
+        "id" : "double-then-dabble",
+        "customAnchorId" : "double-then-dabble"
+      }, {
+        "title" : "Implementing the Hardware",
+        "id" : "implementing-the-hardware",
+        "customAnchorId" : "implementing-the-hardware"
+      }, {
+        "title" : "Testing",
+        "id" : "testing",
+        "customAnchorId" : "testing"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

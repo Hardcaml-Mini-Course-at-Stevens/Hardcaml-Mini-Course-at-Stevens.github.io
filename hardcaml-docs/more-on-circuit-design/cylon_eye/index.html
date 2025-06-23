@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 4.2.2 Cylon Eye</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>In this example we will simulate the scanning effect of a Cylons eye as seen in Battlestar Galactica We will assume we have an array of 16 LEDs that we can drive with a 3 bit intensity value where 0 is off and 7 is full brightness</p>
+</article>
+
+<article>
+<header><h1>Implementation</h1></header>
+<p>The circuit takes 2 inputs the clock and an enable The enable is wired into every register We will see why later The implementation has 3 parts First we go through every and decrease it s intensity by one to a minimum of 0 We then find the current eye located at and set it to maximum intensity Together these processes create a eye with a tail Because it looks cooler Finally we have some logic which updates the eye position When is zero we move left and when it is one we move right At the boundaries we switch direction let cylon_eye clock enable let spec Reg_spec create clock in let eye_pos Always Variable reg spec enable width 4 in let eye_dir Always Variable reg spec enable width 1 in let eye_bar List init 16 f fun _ &gt; Always Variable reg spec enable width 3 in Always compile * Decrease intensity * proc List map eye_bar f fun eye &gt; proc eye &lt; eye value 1 when_ eye value 0 eye &lt; 0 * Set current eye to max intensity * proc List mapi eye_bar f fun idx eye &gt; when_ eye_pos value idx eye &lt; 7 * Scan left and right * if_ eye_dir value eye_pos &lt; eye_pos value 1 when_ eye_pos value 1 eye_dir &lt; gnd eye_pos &lt; eye_pos value 1 when_ eye_pos value 14 eye_dir &lt; vdd List map eye_bar f fun eye &gt; eye value eye eye_pos eye_dir</p>
+</article>
+
+<article>
+<header><h1>Testing</h1></header>
+<p>Testing is pretty trivial The only input is which we set to 1 and otherwise all we have to do is print the outputs enable let test let sim Circuit create_exn name cylon_eye cylon_eye clock input clock 1 enable input enable 1 |&gt; List mapi f fun i &gt; output %string eye% i#Int |&gt; Cyclesim create in let eyes List init 16 f fun i &gt; Cyclesim out_port sim %string eye% i#Int in Cyclesim in_port sim enable Bits vdd for _ 1 to 40 do Cyclesim cycle sim List iter eyes f fun e &gt; printf %i Bits to_unsigned_int e printf n done let%expect_test test %expect | 7000000000000000 6700000000000000 5670000000000000 4567000000000000 3456700000000000 2345670000000000 1234567000000000 0123456700000000 0012345670000000 0001234567000000 0000123456700000 0000012345670000 0000001234567000 0000000123456700 0000000012345670 0000000001234567 0000000000123476 0000000000012765 0000000000007654 0000000000076543 0000000000765432 0000000007654321 0000000076543210 0000000765432100 0000007654321000 0000076543210000 0000765432100000 0007654321000000 0076543210000000 0765432100000000 7654321000000000 6743210000000000 5672100000000000 4567000000000000 3456700000000000 2345670000000000 1234567000000000 0123456700000000 0012345670000000 0001234567000000 |</p>
+</article>
+
+<article>
+<header><h1>Real World Considerations</h1></header>
+<p>Lets say we clock this circuit at 100Mhz It takes 30 cycles to scan left to right and back again so that means we will do something like 3 33 million scans per second That s obviously not something we could actually see This is why we included the enable signal We can use it to slow down the scanning process by only enabling it every so often The simplest way to do this is to define another counter and only enable the scan when the counter equals some value If we want the scan to take 1 second we want to count to 3 33 million so we will need a 22 bit counter The second issue is that LEDs are driven by a single on off value So how do we show intensity For this we need to use a technique called Pulse Width Modulation PWM The idea is that we will turn the LED on and off much faster than we can perceive and in proportion to the intensity we want to show Here is our final design We made the rate at which the enable toggles a parameter called We would want to set this to when generating hardware For testing we set it to so that we can see the PWM happening  There is sometimes a maximum rate at which we should drive a PWM signal I am not sure it applies to LEDs but it is easily adjustable by changing the PWM code as follows This will slow down the toggling but will still drive the same average power let cylon_eye_top scope enable_rate clock let spec Reg_spec create clock in let%hw_var enable Always Variable reg spec width 1 in let eyes cylon_eye clock enable enable value in let%hw_var count Always Variable reg spec width 22 in let leds List init List length eyes f fun _ &gt; Always Variable reg spec width 1 in Always compile * Control the enable * enable &lt; gnd count &lt; count value 1 when_ count value enable_rate 1 count &lt; 0 enable &lt; vdd * PWM for each LED * proc List map2_exn leds eyes f fun led eye &gt; led &lt; eye &gt; count value 2 0 List map leds f fun led &gt; led value enable_rate 3_333_333 8 let test let sim let scope Scope create flatten_design true in let leds cylon_eye_top scope enable_rate 8 clock input clock 1 in Circuit create_exn name cylon_eye List mapi leds f fun i &gt; output Printf sprintf led% 2i i |&gt; Cyclesim create config Cyclesim Config trace_all in let waves sim Waveform create sim in for _ 1 to 120 do Cyclesim cycle sim done Waveform expect_exact waves wave_width 2 let%expect_test test %expect_exact | SignalsWaves clock    enable                    led00                     led01                     led02                     led03                     led04                     led05                     led06                     led07                     led08                     led09                    led10                    led11                    led12                   led13                    led14                    led15                       count      gnd      vdd       23a1bb8cebaa916241e49f8dd3880407 | led &lt; eye &gt; count value 12 10</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "In this example we will simulate the scanning effect of a Cylons eye as seen in Battlestar",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "Galactica.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "We will assume we have an array of 16 LEDs that we can drive with a 3 bit intensity value",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "where 0 is off and 7 is full brightness.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "implementation",
+      "additionalIds" : [ ],
+      "title" : "Implementation",
+      "type" : "Section",
+      "content" : [ {
+        "lang" : "ocaml",
+        "snippet" : "let cylon_eye ~clock ~enable =\n  let spec = Reg_spec.create ~clock () in\n  let eye_pos = Always.Variable.reg spec ~enable ~width:4 in\n  let eye_dir = Always.Variable.reg spec ~enable ~width:1 in\n  let eye_bar = List.init 16 ~f:(fun _ -> Always.Variable.reg spec ~enable ~width:3) in\n  Always.(\n    compile\n      [ (* Decrease intensity. *)\n        proc\n          (List.map eye_bar ~f:(fun eye ->\n             proc [ eye <-- eye.value -:. 1; when_ (eye.value ==:. 0) [ eye <--. 0 ] ]))\n      ; (* Set current eye to max intensity. *)\n        proc\n          (List.mapi eye_bar ~f:(fun idx eye ->\n             when_ (eye_pos.value ==:. idx) [ eye <--. 7 ]))\n      ; (* Scan left and right. *)\n        if_\n          eye_dir.value\n          [ eye_pos <-- eye_pos.value -:. 1\n          ; when_ (eye_pos.value ==:. 1) [ eye_dir <-- gnd ]\n          ]\n          [ eye_pos <-- eye_pos.value +:. 1\n          ; when_ (eye_pos.value ==:. 14) [ eye_dir <-- vdd ]\n          ]\n      ]);\n  List.map eye_bar ~f:(fun eye -> eye.value)\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The circuit takes 2 inputs - the clock and an enable. The enable is wired into every",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "register. We will see why later.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The implementation has 3 parts. First, we go through every ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "eye",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and decrease it's intensity",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "by one to a minimum of 0.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We then find the current eye located at ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "eye_pos",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and set it to maximum intensity. Together",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "these processes create a eye with a tail.  Because it looks cooler.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Finally we have some logic which updates the eye position. When ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "eye_dir",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is zero we move",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "left and when it is one we move right. At the boundaries we switch direction.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "testing",
+      "additionalIds" : [ ],
+      "title" : "Testing",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Testing is pretty trivial. The only input is ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "enable",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " which we set to 1, and otherwise all",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "we have to do is print the outputs.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let test () =\n  let sim =\n    Circuit.create_exn\n      ~name:\"cylon_eye\"\n      (cylon_eye ~clock:(input \"clock\" 1) ~enable:(input \"enable\" 1)\n       |> List.mapi ~f:(fun i -> output [%string \"eye%{i#Int}\"]))\n    |> Cyclesim.create\n  in\n  let eyes = List.init 16 ~f:(fun i -> Cyclesim.out_port sim [%string \"eye%{i#Int}\"]) in\n  Cyclesim.in_port sim \"enable\" := Bits.vdd;\n  for _ = 1 to 40 do\n    Cyclesim.cycle sim;\n    List.iter eyes ~f:(fun e -> printf \"%i\" (Bits.to_unsigned_int !e));\n    printf \"\\n\"\n  done\n;;\n\nlet%expect_test \"\" =\n  test ();\n  [%expect\n    {|\n    7000000000000000\n    6700000000000000\n    5670000000000000\n    4567000000000000\n    3456700000000000\n    2345670000000000\n    1234567000000000\n    0123456700000000\n    0012345670000000\n    0001234567000000\n    0000123456700000\n    0000012345670000\n    0000001234567000\n    0000000123456700\n    0000000012345670\n    0000000001234567\n    0000000000123476\n    0000000000012765\n    0000000000007654\n    0000000000076543\n    0000000000765432\n    0000000007654321\n    0000000076543210\n    0000000765432100\n    0000007654321000\n    0000076543210000\n    0000765432100000\n    0007654321000000\n    0076543210000000\n    0765432100000000\n    7654321000000000\n    6743210000000000\n    5672100000000000\n    4567000000000000\n    3456700000000000\n    2345670000000000\n    1234567000000000\n    0123456700000000\n    0012345670000000\n    0001234567000000\n    |}]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    }, {
+      "id" : "real-world-considerations",
+      "additionalIds" : [ ],
+      "title" : "Real World Considerations",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Lets say we clock this circuit at 100Mhz. It takes 30 cycles to scan left to right and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "back again, so that means we will do something like 3.33 million scans per second. That's",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "obviously not something we could actually see.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "This is why we included the enable signal. We can use it to slow down the scanning process",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "by only enabling it every so often.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The simplest way to do this is to define another counter and only enable the scan when the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "counter equals some value. If we want the scan to take 1 second we want to count to 3.33",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "million so we will need a 22 bit counter.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The second issue is that LEDs are driven by a single on/off value. So how do we show",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "intensity? For this we need to use a technique called Pulse Width Modulation (PWM). The",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "idea is that we will turn the LED on and off much faster than we can perceive and in",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "proportion to the intensity we want to show.  Here is our final design.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let cylon_eye_top ~scope ~enable_rate ~clock =\n  let spec = Reg_spec.create ~clock () in\n  let%hw_var enable = Always.Variable.reg spec ~width:1 in\n  let eyes = cylon_eye ~clock ~enable:enable.value in\n  let%hw_var count = Always.Variable.reg spec ~width:22 in\n  let leds =\n    List.init (List.length eyes) ~f:(fun _ -> Always.Variable.reg spec ~width:1)\n  in\n  Always.(\n    compile\n      [ (* Control the enable. *)\n        enable <-- gnd\n      ; count <-- count.value +:. 1\n      ; when_ (count.value ==:. enable_rate - 1) [ count <--. 0; enable <-- vdd ]\n      ; (* PWM for each LED. *)\n        proc\n          (List.map2_exn leds eyes ~f:(fun led eye ->\n             led <-- (eye >=: count.value.:[2, 0])))\n      ]);\n  List.map leds ~f:(fun led -> led.value)\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We made the rate at which the enable toggles a parameter called ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "enable_rate",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". We would",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "want to set this to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "3_333_333",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " when generating hardware. For testing, we set it to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "8",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " so",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "that we can see the PWM happening.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let test () =\n  let sim =\n    let scope = Scope.create ~flatten_design:true () in\n    let leds = cylon_eye_top ~scope ~enable_rate:8 ~clock:(input \"clock\" 1) in\n    Circuit.create_exn\n      ~name:\"cylon_eye\"\n      (List.mapi leds ~f:(fun i -> output (Printf.sprintf \"led%.2i\" i)))\n    |> Cyclesim.create ~config:Cyclesim.Config.trace_all\n  in\n  let waves, sim = Waveform.create sim in\n  for _ = 1 to 120 do\n    Cyclesim.cycle sim\n  done;\n  Waveform.expect_exact waves ~wave_width:(-2)\n;;\n\nlet%expect_test \"\" =\n  test ();\n  [%expect_exact\n    {|\n┌Signals───────────┐┌Waves───────────────────────────────────────────────────────────────┐\n│clock             ││╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥│\n│                  ││╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨│\n│enable            ││    ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥           │\n│                  ││────╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───        │\n│led00             ││╥   ╥───────╥──╥╥──┐╥─╥ ╥─┐ ╥╥  ╥   ╥   ╥   ╥   ╥   ╥   ╥           │\n│                  ││╨───╨       ╨  ╨╨  └╨ ╨─╨ └─╨╨──╨───╨───╨───╨───╨───╨───╨───        │\n│led01             ││╥   ╥   ╥───────╥──╥╥──┐╥─╥ ╥─┐ ╥╥  ╥   ╥   ╥   ╥   ╥   ╥           │\n│                  ││╨───╨───╨       ╨  ╨╨  └╨ ╨─╨ └─╨╨──╨───╨───╨───╨───╨───╨───        │\n│led02             ││╥   ╥   ╥   ╥───────╥──╥╥──┐╥─╥ ╥─┐ ╥╥  ╥   ╥   ╥   ╥   ╥           │\n│                  ││╨───╨───╨───╨       ╨  ╨╨  └╨ ╨─╨ └─╨╨──╨───╨───╨───╨───╨───        │\n│led03             ││╥   ╥   ╥   ╥   ╥───────╥──╥╥──┐╥─╥ ╥─┐ ╥╥  ╥   ╥   ╥   ╥           │\n│                  ││╨───╨───╨───╨───╨       ╨  ╨╨  └╨ ╨─╨ └─╨╨──╨───╨───╨───╨───        │\n│led04             ││╥   ╥   ╥   ╥   ╥   ╥───────╥──╥╥──┐╥─╥ ╥─┐ ╥╥  ╥   ╥   ╥           │\n│                  ││╨───╨───╨───╨───╨───╨       ╨  ╨╨  └╨ ╨─╨ └─╨╨──╨───╨───╨───        │\n│led05             ││╥   ╥   ╥   ╥   ╥   ╥   ╥───────╥──╥╥──┐╥─╥ ╥─┐ ╥╥  ╥   ╥           │\n│                  ││╨───╨───╨───╨───╨───╨───╨       ╨  ╨╨  └╨ ╨─╨ └─╨╨──╨───╨───        │\n│led06             ││╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥───────╥──╥╥──┐╥─╥ ╥─┐ ╥╥  ╥           │\n│                  ││╨───╨───╨───╨───╨───╨───╨───╨       ╨  ╨╨  └╨ ╨─╨ └─╨╨──╨───        │\n│led07             ││╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥───────╥──╥╥──┐╥─╥ ╥─┐ ╥╥          │\n│                  ││╨───╨───╨───╨───╨───╨───╨───╨───╨       ╨  ╨╨  └╨ ╨─╨ └─╨╨──        │\n│led08             ││╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥───────╥──╥╥──┐╥─╥ ╥─┐         │\n│                  ││╨───╨───╨───╨───╨───╨───╨───╨───╨───╨       ╨  ╨╨  └╨ ╨─╨ └─        │\n│led09             ││╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥───────╥──╥╥──┐╥─╥         │\n│                  ││╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨       ╨  ╨╨  └╨ ╨─        │\n│led10             ││╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥───────╥──╥╥──┐        │\n│                  ││╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨       ╨  ╨╨  └        │\n│led11             ││╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥───────╥──╥        │\n│                  ││╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨       ╨  ╨        │\n│led12             ││╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥───────        │\n│                  ││╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨               │\n│led13             ││╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥───        │\n│                  ││╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨           │\n│led14             ││╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥           │\n│                  ││╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───        │\n│led15             ││╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥   ╥           │\n│                  ││╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───╨───        │\n│                  ││╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥╥        │\n│count             ││║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║║        │\n│                  ││╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨╨        │\n│gnd               ││                                                                    │\n│                  ││────────────────────────────────────────────────────────────        │\n│vdd               ││────────────────────────────────────────────────────────────        │\n│                  ││                                                                    │\n└──────────────────┘└────────────────────────────────────────────────────────────────────┘\n23a1bb8cebaa916241e49f8dd3880407\n|}]\n;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "BlockQuote",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "📝 There is sometimes a maximum rate at which we should drive a PWM signal. I am not",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "sure it applies to LEDs but it is easily adjustable by changing the PWM code as follows",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "code" : "led <-- (eye >=: count.value.:[12, 10])",
+            "type" : "InlinedCode"
+          }, {
+            "text" : ". This will slow down the toggling but will",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "still drive the same average power.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709443632,
+    "tocItem" : {
+      "chapterTitle" : "More On Circuit Design",
+      "pageTitle" : "4.2.2 Cylon Eye",
+      "pageMeta" : {
+        "parent" : [ "always.mdx" ],
+        "title" : [ "4.2.2 Cylon Eye" ],
+        "uuid" : [ "e4a336f2-0962-3b32-0066-8b93b3e7dd70" ]
+      },
+      "dirName" : "more-on-circuit-design",
+      "fileName" : "cylon_eye",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Implementation",
+        "id" : "implementation",
+        "customAnchorId" : "implementation"
+      }, {
+        "title" : "Testing",
+        "id" : "testing",
+        "customAnchorId" : "testing"
+      }, {
+        "title" : "Real World Considerations",
+        "id" : "real-world-considerations",
+        "customAnchorId" : "real-world-considerations"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

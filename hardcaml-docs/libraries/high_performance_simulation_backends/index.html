@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 7.1 High Performance Simulation Backends</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>The default simulator shipped with Hardcaml is a cycle accurate simulator implemented in OCaml There are two other types of simulator backends shipped with Hardcaml available in the and libraries The libraries can be installed with opam hardcaml_c hardcaml_verilator opam install hardcaml_verilator opam install hardcaml_c</p>
+</article>
+
+<article>
+<header><h1>Hardcaml_verilator</h1></header>
+<p>Verilator is a free and open source software tool which converts Verilog to a cycle accurate behavioural model in C or SystemC that runs with high performance is a simulation backend that compiles a Hardcaml circuit simulation to the Verilator backend with custom generated C bindings All these are done under the hood whilst exposing the Cyclesim API to the end user To use Verilator and g have to be installed on your system The key benefit of using the Verilator based backend is that it is much more performant than using Cyclesim or Hardcaml_c There are several known downsides with this simulation backend The Verilator simulator does not support inspecting the values of internal signals of the circuit Compiling extremely large circuits on Verilator can be slow but the trade off is worthwhile for large scale simulations After creating the Verilator based Cyclesim object the simulation works as would any Cyclesim simulator Notice the type signature of being a simple This means that we can write simulation test benches that are agnostic to the backend whether it is Hardcaml s Cyclesim Hardcaml Verilator or Hardcaml C also supports an Interface based API See Compilation options Some Verilator configuration options are exposed via In particular it is possible to split the generated C code into much smaller chunks and use many more gcc processes which can drastically improve compilation time See the config module for some presets The code supports both version 4 and 5 of Verilator set the config value verilator_version appropriately Hardcaml_verilator Hardcaml_verilator open Hardcaml open Signal * Circuit definition * let clock input clock 1 let foo input foo 32 let bar input bar 32 let baz let r_sync Reg_spec create clock in output baz reg enable vdd r_sync foo bar * Create Simulation * let circuit Circuit create_exn name adder baz # let cycle sim foo bar Cyclesim in_port sim foo Bits of_unsigned_int width 32 foo Cyclesim in_port sim bar Bits of_unsigned_int width 32 bar Cyclesim cycle sim Stdio printf %d %d %d n foo bar Bits to_unsigned_int Cyclesim out_port sim baz val cycle a b Cyclesim t &gt; int &gt; int &gt; unit &lt;fun&gt; # let sim_verilator Hardcaml_verilator create clock_names clock circuit val sim_verilator Cyclesim t_port_list &lt;abstr&gt; # cycle sim_verilator 1 2 1 2 3 unit # cycle sim_verilator 23 34 23 34 57 unit sim_verilator Cyclesim t_port_list Hardcaml_verilator Hardcaml_verilator With_interface Hardcaml_verilator Config</p>
+</article>
+
+<article>
+<header><h1>Hardcaml_c</h1></header>
+<p>Hardcaml_c is a Hardcaml simulator that converts the design to a C based simulation model for improved performance The primary benefit of using Hardcaml_c is that it has a much more modest compilation time compared to but is still much more performant than the regular Hardcaml Cyclesim simulator To use has to be installed on your local machine The key limitation in Hardcaml C is that as of writing it does not properly support tracing outputs before clock edges Using the simulation backend is simple as demonstrated in the example below Like Hardcaml Verilator Hardcaml C supports an Interface based API See Hardcaml_verilator Hardcaml_c gcc Hardcaml_c # let sim_c Hardcaml_c Cyclesim create circuit val sim_c Cyclesim t_port_list &lt;abstr&gt; # cycle sim_c 1 2 1 2 3 unit # cycle sim_c 23 50 23 50 73 unit Hardcaml_c Cyclesim With_interface</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The default simulator shipped with Hardcaml is a cycle-accurate",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "simulator implemented in OCaml. There are two other types of simulator",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "backends shipped with Hardcaml, available in the ",
+        "type" : "SimpleText"
+      }, {
+        "code" : "hardcaml_c",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " and",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "code" : "hardcaml_verilator",
+        "type" : "InlinedCode"
+      }, {
+        "text" : " libraries.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "The libraries can be installed with opam.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "lang" : "",
+      "snippet" : "opam install hardcaml_verilator\nopam install hardcaml_c",
+      "lineNumber" : "",
+      "type" : "Snippet"
+    }, {
+      "id" : "hardcaml_verilator",
+      "additionalIds" : [ ],
+      "title" : "Hardcaml_verilator",
+      "headingContent" : [ {
+        "code" : "Hardcaml_verilator",
+        "type" : "InlinedCode"
+      } ],
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "url" : "https://www.veripool.org/wiki/verilator",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "Verilator",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " is a free and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "open-source software tool which converts Verilog to a cycle-accurate",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "behavioural model in C++ or SystemC that runs with high",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "performance. ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hardcaml_verilator",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " is a simulation backend that",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "compiles a Hardcaml circuit simulation to the Verilator backend, with",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "custom-generated C++ bindings. All these are done under the hood",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "whilst exposing the Cyclesim API to the end user.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To use ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "https://ocaml.org/p/hardcaml_verilator/latest/doc/Hardcaml_verilator/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "Hardcaml_verilator",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "text" : ",",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "url" : "https://www.veripool.org/wiki/verilator",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "Verilator",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " and g++ have to be",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "installed on your system.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The key benefit of using the Verilator-based backend is that it is",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "much more performant than using Cyclesim or Hardcaml_c.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "There are several known downsides with this simulation backend:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "The Verilator simulator does not support inspecting the values of",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "internal signals of the circuit.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Compiling extremely large circuits on Verilator can be slow, but the",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "trade-off is worthwhile for large-scale simulations.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "open Hardcaml\nopen Signal\n\n(* Circuit definition. *)\nlet clock = input \"clock\" 1\nlet foo = input \"foo\" 32\nlet bar = input \"bar\" 32\nlet baz =\n  let r_sync = Reg_spec.create ~clock () in\n  output \"baz\" (reg ~enable:vdd r_sync (foo +: bar))\n;;\n\n(* Create Simulation. *)\nlet circuit = Circuit.create_exn ~name:\"adder\" [ baz ]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "After creating the Verilator-based Cyclesim object, the simulation",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "works as would any Cyclesim simulator.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let cycle sim foo bar =\n    (Cyclesim.in_port sim \"foo\") := Bits.of_unsigned_int ~width:32 foo;\n    (Cyclesim.in_port sim \"bar\") := Bits.of_unsigned_int ~width:32 bar;\n    Cyclesim.cycle sim;\n    Stdio.printf \"%d + %d = %d\\n\"\n      foo bar (Bits.to_unsigned_int !(Cyclesim.out_port sim \"baz\"));\n  ;;\nval cycle : ('a, 'b) Cyclesim.t -> int -> int -> unit = <fun>\n\n# let sim_verilator =\n    Hardcaml_verilator.create\n       ~clock_names:[ \"clock\" ]\n       circuit\n  ;;\nval sim_verilator : Cyclesim.t_port_list = <abstr>\n\n#  cycle sim_verilator 1 2;\n1 + 2 = 3\n- : unit = ()\n\n#  cycle sim_verilator 23 34;\n23 + 34 = 57\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Notice the type signature of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "sim_verilator",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " being a simple",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "Cyclesim.t_port_list",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". This means that we can write simulation test",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "benches that are agnostic to the backend, whether it is Hardcaml's",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "Cyclesim, Hardcaml Verilator, or Hardcaml C.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "Hardcaml_verilator",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " also supports an Interface-based API. See",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "url" : "https://ocaml.org/p/hardcaml_verilator/latest/doc/Hardcaml_verilator/With_interface/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "Hardcaml_verilator.With_interface",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "hardcaml_verilator-compilation-options",
+        "additionalIds" : [ "compilation-options" ],
+        "level" : 2,
+        "title" : "Compilation options",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Some Verilator configuration options are exposed via [",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hardcaml_verilator.Config",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "]. In",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "particular, it is possible to split the generated C++ code into much smaller chunks and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "use many more gcc processes which can drastically improve compilation time. See the config",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "module for some presets.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The code supports both version 4 and 5 of Verilator - set the config value",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "[verilator_version] appropriately.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "hardcaml_c",
+      "additionalIds" : [ ],
+      "title" : "Hardcaml_c",
+      "headingContent" : [ {
+        "code" : "Hardcaml_c",
+        "type" : "InlinedCode"
+      } ],
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Hardcaml_c is a Hardcaml simulator that converts the design to a",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "C-based simulation model for improved performance.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The primary benefit of using Hardcaml_c is that it has a much more",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "modest compilation time (compared to ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hardcaml_verilator",
+          "type" : "InlinedCode"
+        }, {
+          "text" : "), but is still",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "much more performant than the regular Hardcaml Cyclesim simulator.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "To use ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hardcaml_c",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "gcc",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " has to be installed on your local machine.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The key limitation in Hardcaml C is that, as of writing, it does not",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "properly support tracing outputs before clock edges.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Using the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Hardcaml_c",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " simulation backend is simple, as demonstrated",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "in the example below.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let sim_c =\n    Hardcaml_c.Cyclesim.create circuit\n  ;;\nval sim_c : Cyclesim.t_port_list = <abstr>\n\n# cycle sim_c 1 2;\n1 + 2 = 3\n- : unit = ()\n\n# cycle sim_c 23 50;\n23 + 50 = 73\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Like Hardcaml Verilator, Hardcaml C supports an Interface-based",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "API. See ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "https://ocaml.org/p/hardcaml_c/latest/doc/Hardcaml_c/Cyclesim/With_interface/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "Hardcaml_c.Cyclesim.With_interface",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709442904,
+    "tocItem" : {
+      "chapterTitle" : "Libraries",
+      "pageTitle" : "7.1 High Performance Simulation Backends",
+      "pageMeta" : {
+        "parent" : [ "libraries.mdx" ],
+        "title" : [ "7.1 High Performance Simulation Backends" ],
+        "uuid" : [ "1e88a449-912e-3457-91f8-b08e1f0ed98e" ]
+      },
+      "dirName" : "libraries",
+      "fileName" : "high_performance_simulation_backends",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Hardcaml_verilator",
+        "id" : "hardcaml_verilator",
+        "customAnchorId" : "hardcaml_verilator"
+      }, {
+        "title" : "Hardcaml_c",
+        "id" : "hardcaml_c",
+        "customAnchorId" : "hardcaml_c"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

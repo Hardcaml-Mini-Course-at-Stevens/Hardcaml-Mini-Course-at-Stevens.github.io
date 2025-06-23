@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 1.3 Quick Overview</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p>Hardcaml is a library for designing and simulating Register Transfer Level RTL hardware designs Hardcaml designs can be converted to Verilog or VHDL for use with vendor synthesis and place and route tools</p>
+</article>
+
+<article>
+<header><h1>Library Overview</h1></header>
+<p>Comb S Bits and Signal The module type defines the combinational logic primitives i e logical operations arithmetic multiplexers etc for Hardcaml It is implemented by both the and modules All operations work over vectors with a given bit width Each operation has rules about allowable argument widths and will raise an exception at run time if violated implements a shallow embedding of the API This means it is used to compute values directly implements a deep embedding This means it records the structure of a computation as a graph Signals also provide functions related to sequential logic registers memories and state machines In summary s are used to construct hardware designs s can be used to model combinational hardware circuits conveniently As we shall see s are also used for input and output ports of hardware simulations Circuit A circuit takes the output signals of a Hardcaml design and performs various sanity checks to ensure that it can be converted to hardware In particular we must provide input and output port names for our designs Hardware generation with Rtl A circuit can be converted to RTL with Verilog or VHDL Simulation with Cyclesim Circuits can be simulated with the module Interfaces with ppx_hardcaml An interface is a grouping of signals with associated names and bit widths A large set of functions are generated which make working with interfaces useful for constructing module ports or interacting with a hardware design in simulation  The term interface is unfortunately a bit overloaded and commonly used to described mli files in OCaml a concept in Object Oriented programming and a type representing a group of signals in SystemVerilog Hardcamls use of interface is most similar to that of SystemVerilog Waveforms image will output waveforms of a simulation run as ASCII text This allows us to integrate them with standard software development style testing workflows In addition an interactive viewer application is provided for detailed analysis Comb S Bits Signal Bits Comb S # open Hardcaml Bits # let adder a b a b val adder t &gt; t &gt; t &lt;fun&gt; # adder of_string 01 of_string 10 t 11 Signal # open Hardcaml Signal # open Hardcaml Signal Unoptimized # let adder a b a b val adder Type t &gt; Type t &gt; Type t &lt;fun&gt; # adder of_string 01 of_string 10 Type t add width 2 arguments 0b01 0b10 Signal t Bits t Bits t # let c output c adder input a 8 input b 8 val c Type t wire names c width 8 data_in add # let circuit Hardcaml Circuit create_exn name my_adder c val circuit Hardcaml Circuit t &lt;abstr&gt; # Hardcaml Rtl print Verilog circuit module my_adder b a c input 7 0 b input 7 0 a output 7 0 c wire 7 0 _4 assign _4 a b assign c _4 endmodule unit Cyclesim let sim Hardcaml Cyclesim create circuit let a Hardcaml Cyclesim in_port sim a let b Hardcaml Cyclesim in_port sim b let c Hardcaml Cyclesim out_port sim c a Hardcaml Bits of_unsigned_int width 8 10 b Hardcaml Bits of_unsigned_int width 8 20 Hardcaml Cyclesim cycle sim # Stdio printf c %i n Hardcaml Bits to_unsigned_int c c 30 unit # type a t a a @bits 8 b a @bits 7 @@deriving hardcaml Hardcaml_waveterm</p>
+</article>
+
+<article>
+<header><h1>Getting Working Hardware</h1></header>
+<p>Designing hardware in Hardcaml is only part of the complete process of getting a fully working design Let s consider the typical workflow for creating a simple Xilinx FPGA design Design and simulate the circuit with Hardcaml Output a Verilog or VHDL file using Hardcaml s RTL generation functions Create a project in Vivado the Xilinx FPGA synthesis place and route tool Add board level constraints pins timing etc Synthesize place and route the design in Vivado Run static timing analysis If this fails you must correct the Hardcaml design or adjust constraints Generate a bitstream to program the FPGA For steps 1 and 2 we often use a project structure with a and directory a library containing the hardware design a test library with testbenches expect tests etc an application to generate RTL code for the Vivado toolchain bin src test src test bin</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "type" : "Paragraph",
+      "content" : [ {
+        "text" : "Hardcaml is a library for designing and simulating Register Transfer Level (RTL) hardware",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "designs. Hardcaml designs can be converted to Verilog or VHDL for use with vendor",
+        "type" : "SimpleText"
+      }, {
+        "type" : "SoftLineBreak"
+      }, {
+        "text" : "synthesis and place and route tools.",
+        "type" : "SimpleText"
+      } ]
+    }, {
+      "id" : "library-overview",
+      "additionalIds" : [ ],
+      "title" : "Library Overview",
+      "type" : "Section",
+      "content" : [ {
+        "id" : "library-overview-combs-bits-and-signal",
+        "additionalIds" : [ "combs-bits-and-signal" ],
+        "level" : 2,
+        "title" : "Comb.S, Bits, and Signal",
+        "headingContent" : [ {
+          "code" : "Comb.S",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Bits",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Signal",
+          "type" : "InlinedCode"
+        } ],
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The module type",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Comb/module-type-S/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "Comb.S",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "defines the ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "/hardcaml-docs/designing-circuits/combinational_logic",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "combinational logic",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " primitives",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "(i.e., logical operations, arithmetic, multiplexers, etc.) for Hardcaml.",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "It is implemented by both the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Bits",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Signal",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " modules. All",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "operations work over vectors with a given bit width. Each operation",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "has rules about allowable argument widths and will raise an exception at",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "run-time if violated.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Bits/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "Bits",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "implements a shallow embedding of the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Comb.S",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " API. This means",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "it is used to compute values directly.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# open Hardcaml.Bits\n# let adder a b = a +: b;;\nval adder : t -> t -> t = <fun>\n# adder (of_string \"01\") (of_string \"10\")\n- : t = 11",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "url" : "https://ocaml.org/p/hardcaml/latest/doc/Hardcaml/Signal/index.html",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "code" : "Signal",
+            "type" : "InlinedCode"
+          } ]
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "implements a deep embedding. This means it records the structure of a",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "computation as a graph.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# open Hardcaml.Signal\n# open Hardcaml.Signal.Unoptimized\n# let adder a b = a +: b;;\nval adder : Type.t -> Type.t -> Type.t = <fun>\n# adder (of_string \"01\") (of_string \"10\")\n- : Type.t = (add (width 2) (arguments (0b01 0b10)))",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Signals also provide functions related to ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "/hardcaml-docs/designing-circuits/sequential_logic",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "sequential logic",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " (registers,",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "memories, and state machines).",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In summary",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "-",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "Signal.t",
+              "type" : "InlinedCode"
+            }, {
+              "text" : "s are used to construct hardware designs.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "Bits.t",
+              "type" : "InlinedCode"
+            }, {
+              "text" : "s can be used to ",
+              "type" : "SimpleText"
+            }, {
+              "type" : "Emphasis",
+              "content" : [ {
+                "text" : "model",
+                "type" : "SimpleText"
+              } ]
+            }, {
+              "text" : " combinational hardware circuits conveniently.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "As we shall see, ",
+              "type" : "SimpleText"
+            }, {
+              "code" : "Bits.t",
+              "type" : "InlinedCode"
+            }, {
+              "text" : "s are also used for input and output ports of",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "hardware simulations.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "id" : "library-overview-circuit",
+        "additionalIds" : [ "circuit" ],
+        "level" : 2,
+        "title" : "Circuit",
+        "headingContent" : [ {
+          "code" : "Circuit",
+          "type" : "InlinedCode"
+        } ],
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "/hardcaml-docs/designing-circuits/circuits",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "circuit",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " takes the output signals of a Hardcaml design and performs",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "various sanity checks to ensure that it can be converted to hardware. In particular, we",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "must provide input and output port names for our designs.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let c = output \"c\" (adder (input \"a\" 8) (input \"b\" 8))\nval c : Type.t = (wire (names (c)) (width 8) (data_in add))\n# let circuit = Hardcaml.Circuit.create_exn ~name:\"my_adder\" [ c ]\nval circuit : Hardcaml.Circuit.t = <abstr>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "library-overview-hardware-generation-with-rtl",
+        "additionalIds" : [ "hardware-generation-with-rtl" ],
+        "level" : 2,
+        "title" : "Hardware generation with Rtl",
+        "headingContent" : [ {
+          "text" : "Hardware generation with ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Rtl",
+          "type" : "InlinedCode"
+        } ],
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A circuit can be ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "/hardcaml-docs/designing-circuits/rtl_generation",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "converted to RTL",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " with Verilog or VHDL.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Hardcaml.Rtl.print Verilog circuit\nmodule my_adder (\n    b,\n    a,\n    c\n);\n\n    input [7:0] b;\n    input [7:0] a;\n    output [7:0] c;\n\n    wire [7:0] _4;\n    assign _4 = a + b;\n    assign c = _4;\n\nendmodule\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "library-overview-simulation-with-cyclesim",
+        "additionalIds" : [ "simulation-with-cyclesim" ],
+        "level" : 2,
+        "title" : "Simulation with Cyclesim",
+        "headingContent" : [ {
+          "text" : "Simulation with ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Cyclesim",
+          "type" : "InlinedCode"
+        } ],
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Circuits can be ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "/hardcaml-docs/simulating-circuits/simulation",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "simulated with the ",
+            "type" : "SimpleText"
+          }, {
+            "code" : "Cyclesim",
+            "type" : "InlinedCode"
+          }, {
+            "text" : " module",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "let sim = Hardcaml.Cyclesim.create circuit;;\nlet a = Hardcaml.Cyclesim.in_port sim \"a\";;\nlet b = Hardcaml.Cyclesim.in_port sim \"b\";;\nlet c = Hardcaml.Cyclesim.out_port sim \"c\";;\na := Hardcaml.Bits.of_unsigned_int ~width:8 10;;\nb := Hardcaml.Bits.of_unsigned_int ~width:8 20;;\nHardcaml.Cyclesim.cycle sim;;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# Stdio.printf \"c = %i\\n\" (Hardcaml.Bits.to_unsigned_int !c);;\nc = 30\n- : unit = ()",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "library-overview-interfaces-with-ppx_hardcaml",
+        "additionalIds" : [ "interfaces-with-ppx_hardcaml" ],
+        "level" : 2,
+        "title" : "Interfaces with ppx_hardcaml",
+        "headingContent" : [ {
+          "text" : "Interfaces with ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "ppx_hardcaml",
+          "type" : "InlinedCode"
+        } ],
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "An interface is a grouping of signals with associated names and bit widths.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# type 'a t =\n  { a : 'a[@bits 8]\n  ; b : 'a[@bits 7]\n  }\n  [@@deriving hardcaml];;",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "A large set of functions are generated, which make working with interfaces useful for",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "constructing module ports or interacting with a hardware design in simulation.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "BlockQuote",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "📝 The term interface is unfortunately a bit overloaded and commonly used to described",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "mli files in OCaml, a concept in Object Oriented programming and a type representing a",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "group of signals in SystemVerilog. Hardcamls use of interface is most similar to that",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "of SystemVerilog.",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "id" : "library-overview-waveforms",
+        "additionalIds" : [ "waveforms" ],
+        "level" : 2,
+        "title" : "Waveforms",
+        "type" : "SubHeading"
+      }, {
+        "fit" : true,
+        "destination" : "/hardcaml-docs/waveterm.png",
+        "alt" : "image",
+        "width" : 1920,
+        "title" : null,
+        "inlined" : false,
+        "timestamp" : 1750709444320,
+        "height" : 1087,
+        "type" : "Image"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "Hardcaml_waveterm",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " will output ",
+          "type" : "SimpleText"
+        }, {
+          "url" : "/hardcaml-docs/simulating-circuits/waveforms",
+          "isFile" : false,
+          "type" : "Link",
+          "content" : [ {
+            "text" : "waveforms",
+            "type" : "SimpleText"
+          } ]
+        }, {
+          "text" : " of a simulation run as ASCII",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "text. This allows us to integrate them with standard software development style testing",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "workflows. In addition an interactive viewer application is provided for detailed",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "analysis.",
+          "type" : "SimpleText"
+        } ]
+      } ]
+    }, {
+      "id" : "getting-working-hardware",
+      "additionalIds" : [ ],
+      "title" : "Getting Working Hardware",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Designing hardware in Hardcaml is only part of the complete process of",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "getting a fully working design. Let's consider the typical workflow for creating a simple",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "Xilinx FPGA design:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "delimiter" : ".",
+        "startNumber" : 1,
+        "type" : "OrderedList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Design and simulate the circuit with Hardcaml.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Output a Verilog (or VHDL) file using Hardcaml's RTL generation functions.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Create a project in Vivado, the Xilinx FPGA synthesis, place and route tool.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Add board-level constraints (pins, timing, etc.).",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Synthesize, place and route the design in Vivado.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Run static timing analysis.  If this fails, you must correct the Hardcaml design",
+              "type" : "SimpleText"
+            }, {
+              "type" : "SoftLineBreak"
+            }, {
+              "text" : "or adjust constraints.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "text" : "Generate a bitstream to program the FPGA.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "For steps 1 and 2, we often use a project structure with a ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "bin",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ", ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "src",
+          "type" : "InlinedCode"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "test",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " directory.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "bulletMarker" : "*",
+        "tight" : true,
+        "type" : "BulletList",
+        "content" : [ {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "src",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " a library containing the hardware design.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "test",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " a test library with testbenches, expect tests etc.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        }, {
+          "type" : "ListItem",
+          "content" : [ {
+            "type" : "Paragraph",
+            "content" : [ {
+              "code" : "bin",
+              "type" : "InlinedCode"
+            }, {
+              "text" : " an application to generate RTL code for the Vivado toolchain.",
+              "type" : "SimpleText"
+            } ]
+          } ]
+        } ]
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709442926,
+    "tocItem" : {
+      "chapterTitle" : "Introduction",
+      "pageTitle" : "1.3 Quick Overview",
+      "pageMeta" : {
+        "parent" : [ "./introduction.mdx" ],
+        "title" : [ "1.3 Quick Overview" ],
+        "uuid" : [ "4f2a36a2-7df0-37d4-7695-81a1e2f6ed7a" ]
+      },
+      "dirName" : "introduction",
+      "fileName" : "quick_overview",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Library Overview",
+        "id" : "library-overview",
+        "customAnchorId" : "library-overview"
+      }, {
+        "title" : "Getting Working Hardware",
+        "id" : "getting-working-hardware",
+        "customAnchorId" : "getting-working-hardware"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>

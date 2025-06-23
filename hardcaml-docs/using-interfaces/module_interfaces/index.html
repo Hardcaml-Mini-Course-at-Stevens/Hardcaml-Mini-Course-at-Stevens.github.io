@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"> 
+<title>Hardcaml: 5.3 Module Interfaces</title>
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/katex.min.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/main.css">
+<link rel="stylesheet" type="text/css" href="/hardcaml-docs/static/css/global-overrides.css">
+</head>
+<link rel="shortcut icon" href="/hardcaml-docs/favicon.png"type="image/ico"/>
+<body class="znai-theme theme-znai-dark">
+<script>(function() {
+    var themeNameKey = 'znaiTheme';
+    var darkThemeName = 'znai-dark';
+    var lightThemeName = 'default';
+
+    var znaiTheme = {
+        changeHandlers: [],
+        addChangeHandler(handler) {
+            this.changeHandlers.push(handler);
+        },
+        removeChangeHandler(handler) {
+            var idx = this.changeHandlers.indexOf(handler);
+            this.changeHandlers.splice(idx, 1);
+        },
+        set(name) {
+            this.name = name;
+            document.body.className = 'znai-theme theme-' + name;
+
+            var idx = 0;
+            var len = this.changeHandlers.length;
+            for (; idx < len; idx++) {
+                this.changeHandlers[idx](name);
+            }
+        },
+        setExplicitly(name) {
+            storeThemeName(name);
+            this.set(name);
+        },
+        setExplicitlyIfNotSetAlready(name) {
+            const themeName = getStoredThemeName();
+            if (themeName) {
+                return
+            }
+
+            this.setExplicitly(name)
+        },
+        toggle() {
+            this.setExplicitly(this.name === lightThemeName ? darkThemeName : lightThemeName)
+        }
+    };
+
+    var mediaThemeName = setLightMatchMediaListenerAndGetThemeName()
+    var themeName = getStoredThemeName() || mediaThemeName;
+    znaiTheme.set(themeName);
+
+    window.znaiTheme = znaiTheme;
+
+    function getStoredThemeName() {
+        return localStorage.getItem(themeNameKey);
+    }
+
+    function storeThemeName(name) {
+        return localStorage.setItem(themeNameKey, name);
+    }
+
+    function setLightMatchMediaListenerAndGetThemeName() {
+        if (!window.matchMedia) {
+            return darkThemeName;
+        }
+
+        var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        lightQuery.addListener(function (e) {
+            const newThemeName = e.matches ? lightThemeName : darkThemeName;
+            znaiTheme.setExplicitly(newThemeName);
+        });
+
+        return lightQuery.matches ? lightThemeName : darkThemeName;
+    }
+})()</script>
+<div id="znai"><div id="znai-initial-page-loading" style="margin: -20px 0 0 -20px; padding: 0 40px 40px 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center">
+    <div></div>
+</div><section id="page-content" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<p></p>
+</article>
+
+<article>
+<header><h1>Module Interfaces</h1></header>
+<p>The primary use of interfaces is to define a general pattern to describe a Hardcaml module We will specify two interfaces called and which represent the input and output signals of a module along with a function called to generate the logic Hardcaml provides various functors usually called that will generate circuits simulators hierarchical instantiations and more if we follow this pattern  The type of the create function does not have to precisely follow this signature It is fine to have further arguments i e some configuration parameters so long as it ends with Example With_interface Hardcaml supports this pattern by providing a number of functors usually called They take the and interfaces as parameters and will provide a function which takes For example we can create a circuit as follows In contrast this is what we would write without interfaces As the number of signals into and out of a module grows and 100 s or even 1000 s is not infeasible the utility of interfaces to deal with boilerplate grows Configuration When we define an interface we specify things like bit widths field existence using options and array or list lengths However we often want to write something more generic To do this we can use functors Taking the previous example lets make the register width configurable We can now instantiate the functor and generate a circuit as before Interface type in equality Consider the following 2 instantiations of our design Inside each instantiation we have records of type and They have exactly the same definition so are the types equal No Because they are created inside a functor distinct types are generated On the other hand would we like them to be equal I would argue no Because they represent interfaces with different bitwidths I would like the type system to differentiate them On occasion it is useful to expose the type equality and it can still be done takes an existing interface and redefines the names and bitwidths of the fields The type constraint exposes the desired equality As shown below the types of and are compatible I O create module I Interface S module O Interface S val create Signal t I t &gt; Signal t O t With_interface Signal t I t &gt; Signal t O t module I struct type a t clock a d a @bits 8 @@deriving hardcaml end module O struct type a t q a @bits 8 q_n a @bits 8 @@deriving hardcaml end # let create i _ I t let q reg Reg_spec create clock i clock i d in O q q_n q val create t I t &gt; t O t &lt;fun&gt; With_interface I O create # module My_circuit Circuit With_interface I O module My_circuit sig type create Hardcaml Interface Create_fn I O t val create_exn config Circuit Config t &gt; input_attributes Rtl_attribute t list I t &gt; output_attributes Rtl_attribute t list O t &gt; name string &gt; create &gt; Circuit t end # My_circuit create_exn name reg create Circuit t &lt;abstr&gt; # let create2 clock d let q reg Reg_spec create clock d in q q val create2 clock t &gt; d t &gt; t * t &lt;fun&gt; # let q q_n create2 clock input clock 1 d input d 8 val q t register width 8 clock clock clock_edge Rising data_in d val q_n t not width 8 arguments register # Circuit create_exn name reg output q q output q_n q_n Circuit t &lt;abstr&gt; module Make Config sig val register_width int end struct module I struct type a t clock a d a @bits Config register_width @@deriving hardcaml end module O struct type a t q a @bits Config register_width q_n a @bits Config register_width @@deriving hardcaml end let create i _ I t let q reg Reg_spec create clock i clock i d in O q q_n q end module My_design Make struct let register_width 4 end module My_circuit2 Circuit With_interface My_design I My_design O # My_circuit2 create_exn name reg My_design create Circuit t &lt;abstr&gt; module My_design16 Make struct let register_width 16 end module My_design32 Make struct let register_width 32 end I t O t module X struct type a t x a @@deriving hardcaml end module Make_X Config sig val width int end Interface S with type a t a X t struct include Interface Update X struct let port_names_and_widths X x x Config width end end Interface Update with type a t a X t module Y Make_X struct let width 10 end module Z Make_X struct let width 20 end Y t Z t # Y port_names Z port_names string Z t list X x x X x x</p>
+</article>
+</section>
+<section id="table-of-contents" style="max-width: 640px; margin-left: auto; margin-right: auto;">
+<article>
+<a href="/hardcaml-docs/introduction/why/">1.1 Why Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/installing_with_opam/">1.2 Installing the Opensource Release</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/introduction/quick_overview/">1.3 Quick Overview</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/combinational_logic/">2.1 Combinational Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rom/">2.1.1 ROM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mux4/">2.1.2 Mux4</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/priority_encoder/">2.1.3 Priority Encoder</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/parity/">2.1.4 Parity</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/alu/">2.1.5 ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sequential_logic/">2.2 Sequential Logic</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/jk_flip_flop/">2.2.1 JK Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/t_flip_flop/">2.2.2 T Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/d_flip_flop/">2.2.3 D Flip Flop</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/ring_counter/">2.2.4 Ring Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/mobius_counter/">2.2.5 Mobius Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/modulo_n_counter/">2.2.6 Modulo N Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/gray_counter/">2.2.7 Gray Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/bidirectional_shift_reg/">2.2.8 Bidirectional Shift Register</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/single_port_ram/">2.2.9 Single Port RAM</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/sync_fifo/">2.2.10 Synchronous FIFO</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/circuits/">2.3 Circuits</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/designing-circuits/rtl_generation/">2.4 RTL Generation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/simulation/">3.1 Simulating with Cyclesim</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveforms/">3.2 Waveforms</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/simulating-circuits/waveterm_interactive_viewer/">3.3 Interactive Viewer</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/naming/">4.1 Naming</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/always/">4.2 Always DSL</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/binary_coded_decimal/">4.2.1 BCD Conversion</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/cylon_eye/">4.2.2 Cylon Eye</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/state_machine_always_api/">4.3 Designing State Machines</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/sequence_detector/">4.3.1 Sequence Detector</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/double_dabble/">4.3.2 Double Dabble</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/instantiation/">4.4 Instantiation</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/structural/">4.5 Working with Structural</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/more-on-circuit-design/conversion-to-rtl/">4.6 How Hardcaml Converts Signals</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/hardcaml_interfaces/">5.1 Hardcaml Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/interfaces_with_ppx_hardcaml/">5.2 Interfaces with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_interfaces/">5.3 Module Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/simulating_with_interfaces/">5.4 Simulating with Interfaces</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/enums_in_hardcaml/">5.5 Enums in Hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/typed_alu/">5.5.1 Typed ALU</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/scopes/">5.6 Scopes</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/module_hierarchies/">5.7 Module Hierarchies</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/using-interfaces/naming_with_ppx_hardcaml/">5.8 Naming with ppx_hardcaml</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/counter/">6.1 Counter</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/serial_multiplier/">6.2 Serial Multipler</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fibonacci_numbers/">6.3 Fibonacci Numbers</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/fft/">6.4 FFT</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/binary_search/">6.5 Binary Search</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/examples/quicksort/">6.6 Quicksort</a>
+</article>
+
+<article>
+<a href="/hardcaml-docs/libraries/high_performance_simulation_backends/">7.1 High Performance Simulation Backends</a>
+</article>
+</section>
+</div>
+<script type="text/javascript" src="/hardcaml-docs/footer.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/toc.js"></script>
+<script type="text/javascript" src="/hardcaml-docs/assets.js"></script>
+<script type="module" src="/hardcaml-docs/static/main.js"></script>
+<script type="module" src="/hardcaml-docs/search-index.js"></script>
+<script type="module">
+document.getElementById('znai').innerHTML = '';
+/*<!--*/
+window.ReactDOM.render(React.createElement(Documentation, {
+  "docMeta" : {
+    "viewOn" : {
+      "link" : "https://github.com/janestreet/hardcaml",
+      "title" : "View Source"
+    },
+    "id" : "hardcaml-docs",
+    "title" : "Hardcaml",
+    "type" : "",
+    "previewEnabled" : false
+  },
+  "page" : {
+    "type" : "Page",
+    "content" : [ {
+      "id" : "module-interfaces",
+      "additionalIds" : [ ],
+      "title" : "Module Interfaces",
+      "type" : "Section",
+      "content" : [ {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "The primary use of interfaces is to define a general pattern to describe a Hardcaml",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "module. We will specify two interfaces called ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "I",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "O",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " which represent the input and",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "output signals of a module along with a function called ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "create",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " to generate the logic.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "",
+        "snippet" : "module I : Interface.S\nmodule O : Interface.S\n\nval create : Signal.t I.t -> Signal.t O.t",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Hardcaml provides various functors (usually called ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "With_interface",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ") that will generate",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "circuits, simulators, hierarchical instantiations, and more if we follow this pattern.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "BlockQuote",
+        "content" : [ {
+          "type" : "Paragraph",
+          "content" : [ {
+            "text" : "📝 The type of the create function does not have to precisely follow this signature. It",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "is fine to have further arguments (i.e. some configuration parameters) so long as it",
+            "type" : "SimpleText"
+          }, {
+            "type" : "SoftLineBreak"
+          }, {
+            "text" : "ends with ",
+            "type" : "SimpleText"
+          }, {
+            "code" : "Signal.t I.t -> Signal.t O.t",
+            "type" : "InlinedCode"
+          }, {
+            "text" : ".",
+            "type" : "SimpleText"
+          } ]
+        } ]
+      }, {
+        "id" : "module-interfaces-example",
+        "additionalIds" : [ "example" ],
+        "level" : 2,
+        "title" : "Example",
+        "type" : "SubHeading"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module I = struct\n  type 'a t =\n    { clock : 'a\n    ; d : 'a[@bits 8]\n    }\n  [@@deriving hardcaml]\nend\n\nmodule O = struct\n  type 'a t =\n    { q : 'a[@bits 8]\n    ; q_n : 'a[@bits 8]\n    }\n  [@@deriving hardcaml]\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let create (i : _ I.t) =\n    let q = reg (Reg_spec.create ~clock:i.clock ()) i.d in\n    { O.q; q_n = ~: q }\nval create : t I.t -> t O.t = <fun>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "module-interfaces-with_interface",
+        "additionalIds" : [ "with_interface" ],
+        "level" : 2,
+        "title" : "With_interface",
+        "headingContent" : [ {
+          "code" : "With_interface",
+          "type" : "InlinedCode"
+        } ],
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Hardcaml supports this pattern by providing a number of functors usually called",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "code" : "With_interface",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". They take the ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "I",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "O",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " interfaces as parameters and will provide a",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "function which takes ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "create",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ".",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "For example, we can create a circuit as follows:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# module My_circuit = Circuit.With_interface(I)(O)\nmodule My_circuit :\n  sig\n    type create = Hardcaml.Interface.Create_fn(I)(O).t\n    val create_exn :\n      ?config:Circuit.Config.t ->\n      ?input_attributes:Rtl_attribute.t list I.t ->\n      ?output_attributes:Rtl_attribute.t list O.t ->\n      name:string -> create -> Circuit.t\n  end\n# My_circuit.create_exn ~name:\"reg\" create\n- : Circuit.t = <abstr>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "In contrast this is what we would write without interfaces:",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# let create2 ~clock ~d = \n    let q = reg (Reg_spec.create ~clock ()) d in \n    q, ~:q\nval create2 : clock:t -> d:t -> t * t = <fun>\n# let q, q_n = create2 ~clock:(input \"clock\" 1) ~d:(input \"d\" 8) \nval q : t =\n  (register (width 8) ((clock clock) (clock_edge Rising)) (data_in d))\nval q_n : t = (not (width 8) (arguments (register)))\n# Circuit.create_exn ~name:\"reg\"\n    [ output \"q\" q; output \"q_n\" q_n ]\n- : Circuit.t = <abstr>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "As the number of signals into and out of a module grows (and 100's or even 1000's is not",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "infeasible) the utility of interfaces to deal with boilerplate grows.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "id" : "module-interfaces-configuration",
+        "additionalIds" : [ "configuration" ],
+        "level" : 2,
+        "title" : "Configuration",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "When we define an interface we specify things like bit widths, field existence (using",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "options) and array or list lengths. However, we often want to write something more",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "generic. To do this we can use functors.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Taking the previous example, lets make the register width configurable.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Make(Config : sig val register_width : int end) = struct \n  module I = struct \n    type 'a t = \n      { clock : 'a \n      ; d : 'a[@bits Config.register_width] \n      }\n    [@@deriving hardcaml]\n  end\n\n  module O = struct \n    type 'a t = \n      { q : 'a[@bits Config.register_width] \n      ; q_n : 'a[@bits Config.register_width]\n      }\n    [@@deriving hardcaml]\n  end\n\n  let create (i : _ I.t) = \n      let q = reg (Reg_spec.create ~clock:i.clock ()) i.d in\n      { O.q; q_n = ~: q }\n  end",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "We can now instantiate the functor and generate a circuit as before.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module My_design = Make(struct let register_width = 4 end) \nmodule My_circuit2 = Circuit.With_interface(My_design.I)(My_design.O)",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# My_circuit2.create_exn ~name:\"reg\" My_design.create\n- : Circuit.t = <abstr>",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "id" : "module-interfaces-configuration-interface-type-in-equality",
+        "additionalIds" : [ "interface-type-in-equality" ],
+        "level" : 3,
+        "title" : "Interface type (in-)equality",
+        "type" : "SubHeading"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Consider the following 2 instantiations of our design.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module My_design16 = Make(struct let register_width = 16 end)\nmodule My_design32 = Make(struct let register_width = 32 end)",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "Inside each instantiation we have records of type ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "I.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "O.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : ". They have exactly the",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "same definition so are the types equal?",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "No. Because they are created inside a functor, distinct types are generated.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "On the other hand would we like them to be equal? I would argue no. Because they represent",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "interfaces with different bitwidths I would like the type system to differentiate them.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "On occasion it is useful to expose the type equality and it can still be done.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module X = struct \n  type 'a t = { x : 'a }[@@deriving hardcaml]\nend\n\nmodule Make_X(Config : sig val width : int end) \n  : Interface.S with type 'a t = 'a X.t\n= struct \n  include Interface.Update(X)(struct \n    let port_names_and_widths = { X.x = \"x\", Config.width }\n  end)\nend",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "code" : "Interface.Update",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " takes an existing interface and redefines the names and bitwidths of",
+          "type" : "SimpleText"
+        }, {
+          "type" : "SoftLineBreak"
+        }, {
+          "text" : "the fields. The type constraint ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "with type 'a t = 'a X.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " exposes the desired equality.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "module Y = Make_X(struct let width = 10 end)\nmodule Z = Make_X(struct let width = 20 end)",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      }, {
+        "type" : "Paragraph",
+        "content" : [ {
+          "text" : "As shown below the types of ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Y.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " and ",
+          "type" : "SimpleText"
+        }, {
+          "code" : "Z.t",
+          "type" : "InlinedCode"
+        }, {
+          "text" : " are compatible.",
+          "type" : "SimpleText"
+        } ]
+      }, {
+        "lang" : "ocaml",
+        "snippet" : "# [ Y.port_names; Z.port_names ]\n- : string Z.t list = [{X.x = \"x\"}; {X.x = \"x\"}]",
+        "lineNumber" : "",
+        "type" : "Snippet"
+      } ]
+    } ],
+    "lastModifiedTime" : 1750709444366,
+    "tocItem" : {
+      "chapterTitle" : "Using Interfaces",
+      "pageTitle" : "5.3 Module Interfaces",
+      "pageMeta" : {
+        "parent" : [ "using_interfaces.mdx" ],
+        "title" : [ "5.3 Module Interfaces" ],
+        "uuid" : [ "3e42e133-1951-3dfd-442a-433342e680a5" ]
+      },
+      "dirName" : "using-interfaces",
+      "fileName" : "module_interfaces",
+      "fileExtension" : "md",
+      "viewOnRelativePath" : null,
+      "pageSectionIdTitles" : [ {
+        "title" : "Module Interfaces",
+        "id" : "module-interfaces",
+        "customAnchorId" : "module-interfaces"
+      } ]
+    }
+  }
+}), document.getElementById("znai"));
+/*-->*/
+
+</script>
+
+</body>
+</html>
