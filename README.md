@@ -1,3 +1,4 @@
-# Hardcaml-Mini-Course-at-Stevens.github.io
+# Resources
 
-Documentation Site
+[Hardcaml Documentation](/hardcaml-docs/index.html)
+
