@@ -1,5 +1,5 @@
 # Resources
 
 [Hardcaml Documentation](/hardcaml-docs/index.html)
-[Setup Guide](/setup)
+[Setup Guide](/setup.md)
 
