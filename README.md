@@ -1,5 +1,5 @@
 # Resources
 
-[Hardcaml Documentation](/hardcaml-docs/index.html)
-[Setup Guide](/setup.md)
-
+* [Ocaml Setup Guide](/setup.md)
+* [Hardcaml Documentation](/hardcaml-docs/index.html)
+* [Configuring the Nexys A7 board](/running_remotely.md)
