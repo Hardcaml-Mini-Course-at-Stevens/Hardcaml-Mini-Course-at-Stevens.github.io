@@ -119,7 +119,7 @@ This should take a few seconds and then print "Success, waiting for filesystem c
 To use Hardcaml, you'll need to install a few more packages:
 
 ```
-opam install -y hardcaml ppx_hardcaml hardcaml_waveterm simple_xml
+opam install -y hardcaml ppx_hardcaml hardcaml_waveterm hardcaml_of_verilog simple_xml
 ```
 
 In addition, we'll install the `hardcaml_hobby_boards` library. We'll install this library directly from the GitHub source, rather than from the opam package repository, in order to get the most up-to-date version.
