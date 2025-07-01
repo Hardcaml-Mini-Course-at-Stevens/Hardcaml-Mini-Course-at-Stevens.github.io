@@ -58,7 +58,7 @@ For Linux (and WSL2) use the OS(/VM) package manager to install them.  For MacOS
     - `utop` - An interactive OCaml interpreter, useful for experimentation
     - `core` - A replacement standard library for OCaml which provides better safety and consistency than the default, and is also used by Hardcaml
 
-2. Test your installation with `utop`. The following steps will import (`#require`) some libraries (only required in `utop`), then open `Core` (allowing it to shadow the standard library), then do some math and print the result.
+2. Test your installation with `utop`. The following steps will import (`#require`) some libraries, then open `Core` (allowing it to shadow the standard library), then do some math and print the result. Note that the `#require` part is only required in `utop`, not in saved `.ml` files.
 
     ```
     ─( 20:33:27 )
