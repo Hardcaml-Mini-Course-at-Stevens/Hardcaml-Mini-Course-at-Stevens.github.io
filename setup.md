@@ -8,9 +8,9 @@ One quirk of WSL2 based development is that VSCode will generally run as a nativ
 
 In all cases there are some basic OS packages that will need to be installed: git, gcc, curl, wget, m4, pkg-congfig (among others).
 
-For Linux (and WSL2) use the OS(/VM) package manager to install them.  For MacOS, you will need to install a 3rd party package manager such as `homebrew`.  opam (the OCaml package manager) will generally tell you if a package it needs is missing.
+For Linux (and WSL2) use the OS(/VM) package manager to install them.  For MacOS, you will need to install a 3rd party package manager such as `homebrew`. Opam (the OCaml package manager) will generally tell you if a package it needs is missing.
 
-## Installing OPAM and the OCaml compiler
+## Installing Opam and the OCaml compiler
 
 1. Install [opam](https://opam.ocaml.org/doc/Install.html) from the official binary distribution.
 
@@ -148,4 +148,24 @@ utop # Hardcaml_hobby_boards.Nexys_a7_100t.generate_top;;
 - : Hardcaml_hobby_boards.Board.t -> unit = <fun>
 ```
 
-If you've reached this point, you've successfully installed and set up OCaml, Hardcaml, and your development environment and are ready to start working with Hardcaml!
+## Vivado Installation
+
+The tool we'll use to compile our designs to the FPGA is called Xilinx Vivado. If you're on Windows or Linux, follow the below steps to install it on your local machine (if using WSL2, you may find it easier to install Vivado directly in Windows and invoke it via the Windows command line). Note that Vivado requires ~90GB of free disk space to set up and will take a few hours to download.
+
+If you're on MacOS, you won't be able to install Vivado locally. Please reach out to get access to the shared course server on which you will be able to run your Vivado builds.
+
+1. Download the "AMD Unified Installer for FPGAs & Adaptive SoCs 2025.1" from the [Vivado install page](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2025-1.html) (make sure to get the 300MB "Self Extracting Web Installer" version, not the 100GB full package. You may need to register an account with AMD here.
+
+2. Run the installer. When prompted, select "Vivado" as the app you want to install (*not* Vitis, which is the default).
+
+3. When asked for which variant, select "Vivado ML Standard Edition"
+
+4. On the page which prompts which features to install, make sure "Vivado Design Suite", "DocNav", and "Artix-7" (under Devices -> Production Devices -> 7 Series) are selected. Everything else can be unselected to save disk space.
+
+5. Allow the Vivado install to finish. This may take a few hours to finish downloading.
+
+6. Verify that you can launch Vivado by running the `vivado` command in your shell or command prompt. Depending on your exact setup, you may need to find and specify the exact path where the Vivado binary was installed.
+
+## Wrap-up
+
+If you've reached this point, you've successfully installed and set up OCaml, Hardcaml, and your development environment and are ready to start working with Hardcaml! If you'd like to refresh yourself on OCaml and how to use the `Core` standard library, check out [Real World OCaml](https://dev.realworldocaml.org/)
