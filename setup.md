@@ -1,5 +1,15 @@
 # Setting up the environment
 
+## OS support & Prerequisites
+
+The OCaml environment will we install only works on a Linux or MacOS based OS.  For Windows we recommend installing the WSL2 Linux VM environment (other VMs will also work, but WSL2 is what we have tested).
+
+One quirk of WSL2 based development is that VSCode will generally run as a native Windows application and will SSH into the WSL2 VM. For this to work we must install the Microsoft `Remote Development` extension. Follow the [VSCode WSL instructions](https://code.visualstudio.com/docs/remote/wsl) to set this up, so that you can properly interface with your WSL2 environment from VSCode. Note that actually programming the physical FPGA board will still be done from within Windows.
+
+In all cases there are some basic OS packages that will need to be installed: git, gcc, curl, wget, m4, pkg-congfig (among others).
+
+For Linux (and WSL2) use the OS(/VM) package manager to install them.  For MacOS, you will need to install a 3rd party package manager such as `homebrew`.  opam (the OCaml package manager) will generally tell you if a package it needs is missing.
+
 ## Installing OPAM and the OCaml compiler
 
 1. Install [opam](https://opam.ocaml.org/doc/Install.html) from the official binary distribution.
