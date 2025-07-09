@@ -8,3 +8,7 @@
 
 * [Hardcaml project template](https://github.com/Hardcaml-Mini-Course-at-Stevens/hardcaml-project-template)
 * [Extended to support Nexys A7 Board](https://github.com/Hardcaml-Mini-Course-at-Stevens/hardcaml-project-template/tree/hobby-boards)
+
+# Course Materials
+
+* [Week 1](https://github.com/Hardcaml-Mini-Course-at-Stevens/Week1)
