@@ -12,3 +12,4 @@
 # Course Materials
 
 * [Week 1](https://github.com/Hardcaml-Mini-Course-at-Stevens/Week1)
+* [Week 2](https://github.com/Hardcaml-Mini-Course-at-Stevens/Week2)
