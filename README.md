@@ -1,7 +1,7 @@
 # Resources
 
 * [Ocaml Setup Guide](/setup.md)
-* [Hardcaml Documentation](/hardcaml-docs/index.html)
+* [Hardcaml Documentation](https://hardcaml-mini-course-at-stevens.github.io/hardcaml-docs/)
 * [Configuring the Nexys A7 board](/working_with_vivado.md)
 
 # Examples
